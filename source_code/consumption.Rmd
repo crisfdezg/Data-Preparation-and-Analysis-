@@ -1,0 +1,824 @@
+---
+title: "Project_indicators"
+author: "Pablo Medrano"
+date: "29/3/2018"
+output: html_document
+---
+
+Load libraries
+```{r}
+library(readr)
+library(sqldf)
+library(dplyr)
+library(plyr)
+library(ggplot2)
+library(stats)
+library(imputeTS)
+library(MTS)
+library(tseries)
+library(forecast)
+library(Metrics)
+```
+Load dataset
+```{r}
+world_indicators <- read_csv("/Users/ignaciodiez/Desktop/iit/2nd semester/data prepraration and analysis/project/world-development-indicators/Indicators.csv")
+```
+
+
+Filter countries we want to study: China, France, India, Spain and USA.
+Create a dataset with all the indicators of all the countries we want to study: our_indicators
+Then create a dataset for each country containing all the indicators for that country: COUNTRY_indicators.
+```{r}
+
+our_indicators <- filter(world_indicators, CountryCode %in% c("CHN", "USA", "IND", "ESP", "FRA"))
+# View(our_indicators)
+CHN_indicators <- our_indicators[our_indicators$CountryCode == 'CHN', ]
+USA_indicators <- our_indicators[our_indicators$CountryCode == 'USA', ]
+IND_indicators <- our_indicators[our_indicators$CountryCode == 'IND', ]
+ESP_indicators <- our_indicators[our_indicators$CountryCode == 'ESP', ]
+FRA_indicators <- our_indicators[our_indicators$CountryCode == 'FRA', ]
+# View(ESP_indicators)
+```
+
+Get all the different indicator names
+```{r}
+indicatornames <- subset(sqldf('select distinct IndicatorName from world_indicators'))
+#View(indicatornames)
+```
+
+
+Select the indicators we want to use as predictors for every country.
+First we create a data frame for the country. Then we obtain the values for each indicator from the country's indicators dataset and save them in a vector. After that a vector with length all possible years(1960-2015) is created and filled with NA values.
+The NA values are replace with the known values we got from the data set. If after that there are any NA values still in the vector, those are replace using kalman replacing.
+Finally the vector is added to the country's dataset.
+
+Consumption SPAIN
+```{r}
+year <- sqldf('select distinct Year from world_indicators')
+cons_ESP <- data.frame(year)
+
+#household consumption
+h_cons <- sqldf('select Year, Value from ESP_indicators where IndicatorName == "Household final consumption expenditure per capita (constant 2005 US$)"')
+h_cons_na <- rep(NA, 56)
+i <- 1
+for (year in h_cons$Year){
+ h_cons_na[(year-1960+1)] <- h_cons$Value[i]
+  i = i + 1
+}
+h_cons_ts <- ts(data = h_cons_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(h_cons_ts)){
+    h_cons_kalman <- na.kalman(h_cons_ts)
+} else{
+    h_cons_kalman <- h_cons_ts
+}
+cons_ESP$'Household final consumption expenditure per capita (constant 2005 US$)' <- h_cons_kalman
+plotNA.imputations(h_cons_ts, h_cons_kalman, main = "Household final consumption expenditure per capita (constant 2005 US$) ESP")
+
+#Inflation, Consumer prices
+inflation <- sqldf('select Year, Value from ESP_indicators where IndicatorName == "Inflation, consumer prices (annual %)"')
+inflation_na <- rep(NA, 56)
+i <- 1
+for (year in inflation$Year){
+  inflation_na[(year-1960+1)] <- inflation$Value[i]
+  i = i + 1
+}
+inflation_ts <- ts(data = inflation_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(inflation_ts)){
+    inflation_kalman <- na.kalman(inflation_ts)
+} else{
+    inflation_kalman <- inflation_ts
+}
+cons_ESP$'Inflation, consumer prices (annual %)' <- inflation_kalman
+plotNA.imputations(inflation_ts, inflation_kalman, main = "Inflation ESP")
+
+#Total Unemployment
+unemployment <- sqldf('select Year, Value from ESP_indicators where IndicatorName == "Unemployment, total (% of total labor force)"')
+unemployment_na <- rep(NA, 56)
+i <- 1
+for (year in unemployment$Year){
+  unemployment_na[(year-1960+1)] <- unemployment$Value[i]
+  i = i + 1
+}
+unemployment_ts <- ts(data = unemployment_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(unemployment_ts)){
+    unemployment_kalman <- na.kalman(unemployment_ts)
+} else{
+    unemployment_kalman <- unemployment_ts
+}
+cons_ESP$'Unemployment, total (% of total labor force)' <- unemployment_kalman
+plotNA.imputations(unemployment_ts, unemployment_kalman, main = "Unemployment ESP")
+
+
+#Government debt, total % of GDP
+government_debt <- sqldf('select Year, Value from ESP_indicators where IndicatorName == "Central government debt, total (% of GDP)"')
+government_debt_na <- rep(NA, 56)
+i <- 1
+for (year in government_debt$Year){
+  government_debt_na[(year-1960+1)] <- government_debt$Value[i]
+  i = i + 1
+}
+government_debt_ts <- ts(data = government_debt_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(government_debt_ts)){
+    government_debt_kalman <- na.kalman(government_debt_ts)
+} else{
+    government_debt_kalman <- government_debt_ts
+}
+cons_ESP$'Central government debt, total (% of GDP)' <- government_debt_kalman
+plotNA.imputations(government_debt_ts, government_debt_kalman, main = "Government debt % of GDP ESP")
+
+#GDP growth annual %
+GDP_growth <- sqldf('select Year, Value from ESP_indicators where IndicatorName == "GDP growth (annual %)"')
+GDP_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_growth$Year){
+  GDP_growth_na[(year-1960+1)] <- GDP_growth$Value[i]
+  i = i + 1
+} 
+GDP_growth_ts <- ts(data = GDP_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_growth_ts)){
+    GDP_growth_kalman <- na.kalman(GDP_growth_ts)
+} else{
+    GDP_growth_kalman <- GDP_growth_ts
+}
+cons_ESP$'GDP growth (annual %)' <- GDP_growth_kalman
+plotNA.imputations(GDP_growth_ts, GDP_growth_kalman, main = "GDP growth annual % ESP")
+
+#GDP per capita constant 2005 US$
+GDP_per_capita <- sqldf('select Year, Value from ESP_indicators where IndicatorName == "GDP per capita (constant 2005 US$)"')
+GDP_per_capita_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita$Year){
+  GDP_per_capita_na[(year-1960+1)] <- GDP_per_capita$Value[i]
+  i = i + 1
+}
+GDP_per_capita_ts <- ts(data = GDP_per_capita_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_ts)){
+    GDP_per_capita_kalman <- na.kalman(GDP_per_capita_ts)
+} else{
+    GDP_per_capita_kalman <- GDP_per_capita_ts
+}
+cons_ESP$'GDP per capita (constant 2005 US$)' <- GDP_per_capita_kalman
+plotNA.imputations(GDP_per_capita_ts, GDP_per_capita_kalman, main = "GDP per capita constant 2005 US$ ESP")
+
+#GDP per capita growth annual %
+GDP_per_capita_growth <- sqldf('select Year, Value from ESP_indicators where IndicatorName == "GDP per capita growth (annual %)"')
+GDP_per_capita_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita_growth$Year){
+  GDP_per_capita_growth_na[(year-1960+1)] <- GDP_per_capita_growth$Value[i]
+  i = i + 1
+}
+GDP_per_capita_growth_ts <- ts(data = GDP_per_capita_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_growth_ts)){
+    GDP_per_capita_growth_kalman <- na.kalman(GDP_per_capita_growth_ts)
+} else{
+    GDP_per_capita_growth_kalman <- GDP_per_capita_growth_ts
+}
+cons_ESP$'GDP per capita growth (annual %)' <- GDP_per_capita_growth_kalman
+plotNA.imputations(GDP_per_capita_growth_ts, GDP_per_capita_growth_kalman, main = "GDP per capita growth annual % ESP")
+
+
+View(cons_ESP)
+```
+
+Consumption CHINA
+```{r}
+year <- sqldf('select distinct Year from world_indicators')
+cons_CHN <- data.frame(year)
+
+#household consumption
+h_cons <- sqldf('select Year, Value from CHN_indicators where IndicatorName == "Household final consumption expenditure per capita (constant 2005 US$)"')
+h_cons_na <- rep(NA, 56)
+i <- 1
+for (year in h_cons$Year){
+ h_cons_na[(year-1960+1)] <- h_cons$Value[i]
+  i = i + 1
+}
+h_cons_ts <- ts(data = h_cons_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(h_cons_ts)){
+    h_cons_kalman <- na.kalman(h_cons_ts)
+} else{
+    h_cons_kalman <- h_cons_ts
+}
+cons_CHN$'Household final consumption expenditure per capita (constant 2005 US$)' <- h_cons_kalman
+plotNA.imputations(h_cons_ts, h_cons_kalman, main = "Household final consumption expenditure per capita (constant 2005 US$) CHN")
+
+#Inflation, Consumer prices
+inflation <- sqldf('select Year, Value from CHN_indicators where IndicatorName == "Inflation, consumer prices (annual %)"')
+inflation_na <- rep(NA, 56)
+i <- 1
+for (year in inflation$Year){
+  inflation_na[(year-1960+1)] <- inflation$Value[i]
+  i = i + 1
+}
+inflation_ts <- ts(data = inflation_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(inflation_ts)){
+    inflation_kalman <- na.kalman(inflation_ts)
+} else{
+    inflation_kalman <- inflation_ts
+}
+cons_CHN$'Inflation, consumer prices (annual %)' <- inflation_kalman
+plotNA.imputations(inflation_ts, inflation_kalman, main = "Inflation CHN")
+
+#Total Unemployment
+unemployment <- sqldf('select Year, Value from CHN_indicators where IndicatorName == "Unemployment, total (% of total labor force)"')
+unemployment_na <- rep(NA, 56)
+i <- 1
+for (year in unemployment$Year){
+  unemployment_na[(year-1960+1)] <- unemployment$Value[i]
+  i = i + 1
+}
+unemployment_ts <- ts(data = unemployment_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(unemployment_ts)){
+    unemployment_kalman <- na.kalman(unemployment_ts)
+} else{
+    unemployment_kalman <- unemployment_ts
+}
+cons_CHN$'Unemployment, total (% of total labor force)' <- unemployment_kalman
+plotNA.imputations(unemployment_ts, unemployment_kalman, main = "Unemployment CHN")
+
+
+#GDP growth annual %
+GDP_growth <- sqldf('select Year, Value from CHN_indicators where IndicatorName == "GDP growth (annual %)"')
+GDP_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_growth$Year){
+  GDP_growth_na[(year-1960+1)] <- GDP_growth$Value[i]
+  i = i + 1
+} 
+GDP_growth_ts <- ts(data = GDP_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_growth_ts)){
+    GDP_growth_kalman <- na.kalman(GDP_growth_ts)
+} else{
+    GDP_growth_kalman <- GDP_growth_ts
+}
+cons_CHN$'GDP growth (annual %)' <- GDP_growth_kalman
+plotNA.imputations(GDP_growth_ts, GDP_growth_kalman, main = "GDP growth annual % CHN")
+
+#GDP per capita constant 2005 US$
+GDP_per_capita <- sqldf('select Year, Value from CHN_indicators where IndicatorName == "GDP per capita (constant 2005 US$)"')
+GDP_per_capita_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita$Year){
+  GDP_per_capita_na[(year-1960+1)] <- GDP_per_capita$Value[i]
+  i = i + 1
+}
+GDP_per_capita_ts <- ts(data = GDP_per_capita_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_ts)){
+    GDP_per_capita_kalman <- na.kalman(GDP_per_capita_ts)
+} else{
+    GDP_per_capita_kalman <- GDP_per_capita_ts
+}
+cons_CHN$'GDP per capita (constant 2005 US$)' <- GDP_per_capita_kalman
+plotNA.imputations(GDP_per_capita_ts, GDP_per_capita_kalman, main = "GDP per capita constant 2005 US$ CHN")
+
+#GDP per capita growth annual %
+GDP_per_capita_growth <- sqldf('select Year, Value from CHN_indicators where IndicatorName == "GDP per capita growth (annual %)"')
+GDP_per_capita_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita_growth$Year){
+  GDP_per_capita_growth_na[(year-1960+1)] <- GDP_per_capita_growth$Value[i]
+  i = i + 1
+}
+GDP_per_capita_growth_ts <- ts(data = GDP_per_capita_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_growth_ts)){
+    GDP_per_capita_growth_kalman <- na.kalman(GDP_per_capita_growth_ts)
+} else{
+    GDP_per_capita_growth_kalman <- GDP_per_capita_growth_ts
+}
+cons_CHN$'GDP per capita growth (annual %)' <- GDP_per_capita_growth_kalman
+plotNA.imputations(GDP_per_capita_growth_ts, GDP_per_capita_growth_kalman, main = "GDP per capita growth annual % CHN")
+
+
+View(cons_CHN)
+```
+
+Consumption USA
+```{r}
+year <- sqldf('select distinct Year from world_indicators')
+cons_USA <- data.frame(year)
+
+#household consumption
+
+h_cons <- sqldf('select Year, Value from USA_indicators where IndicatorName == "Household final consumption expenditure per capita (constant 2005 US$)"')
+h_cons_na <- rep(NA, 56)
+i <- 1
+for (year in h_cons$Year){
+ h_cons_na[(year-1960+1)] <- h_cons$Value[i]
+  i = i + 1
+}
+h_cons_ts <- ts(data = h_cons_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(h_cons_ts)){
+    h_cons_kalman <- na.kalman(h_cons_ts)
+} else{
+    h_cons_kalman <- h_cons_ts
+}
+cons_USA$'Household final consumption expenditure per capita (constant 2005 US$)' <- h_cons_kalman
+plotNA.imputations(h_cons_ts, h_cons_kalman, main = "Household final consumption expenditure per capita (constant 2005 US$) USA")
+
+#Inflation, Consumer prices
+inflation <- sqldf('select Year, Value from USA_indicators where IndicatorName == "Inflation, consumer prices (annual %)"')
+inflation_na <- rep(NA, 56)
+i <- 1
+for (year in inflation$Year){
+  inflation_na[(year-1960+1)] <- inflation$Value[i]
+  i = i + 1
+}
+inflation_ts <- ts(data = inflation_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(inflation_ts)){
+    inflation_kalman <- na.kalman(inflation_ts)
+} else{
+    inflation_kalman <- inflation_ts
+}
+cons_USA$'Inflation, consumer prices (annual %)' <- inflation_kalman
+plotNA.imputations(inflation_ts, inflation_kalman, main = "Inflation USA")
+
+#Total Unemployment
+unemployment <- sqldf('select Year, Value from USA_indicators where IndicatorName == "Unemployment, total (% of total labor force)"')
+unemployment_na <- rep(NA, 56)
+i <- 1
+for (year in unemployment$Year){
+  unemployment_na[(year-1960+1)] <- unemployment$Value[i]
+  i = i + 1
+}
+unemployment_ts <- ts(data = unemployment_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(unemployment_ts)){
+    unemployment_kalman <- na.kalman(unemployment_ts)
+} else{
+    unemployment_kalman <- unemployment_ts
+}
+cons_USA$'Unemployment, total (% of total labor force)' <- unemployment_kalman
+plotNA.imputations(unemployment_ts, unemployment_kalman, main = "Unemployment USA")
+
+
+#Government debt, total % of GDP
+government_debt <- sqldf('select Year, Value from USA_indicators where IndicatorName == "Central government debt, total (% of GDP)"')
+government_debt_na <- rep(NA, 56)
+i <- 1
+for (year in government_debt$Year){
+  government_debt_na[(year-1960+1)] <- government_debt$Value[i]
+  i = i + 1
+}
+government_debt_ts <- ts(data = government_debt_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(government_debt_ts)){
+    government_debt_kalman <- na.kalman(government_debt_ts)
+} else{
+    government_debt_kalman <- government_debt_ts
+}
+cons_USA$'Central government debt, total (% of GDP)' <- government_debt_kalman
+plotNA.imputations(government_debt_ts, government_debt_kalman, main = "Government debt % of GDP USA")
+
+#GDP growth annual %
+GDP_growth <- sqldf('select Year, Value from USA_indicators where IndicatorName == "GDP growth (annual %)"')
+GDP_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_growth$Year){
+  GDP_growth_na[(year-1960+1)] <- GDP_growth$Value[i]
+  i = i + 1
+} 
+GDP_growth_ts <- ts(data = GDP_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_growth_ts)){
+    GDP_growth_kalman <- na.kalman(GDP_growth_ts)
+} else{
+    GDP_growth_kalman <- GDP_growth_ts
+}
+cons_USA$'GDP growth (annual %)' <- GDP_growth_kalman
+plotNA.imputations(GDP_growth_ts, GDP_growth_kalman, main = "GDP growth annual % USA")
+
+#GDP per capita constant 2005 US$
+GDP_per_capita <- sqldf('select Year, Value from USA_indicators where IndicatorName == "GDP per capita (constant 2005 US$)"')
+GDP_per_capita_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita$Year){
+  GDP_per_capita_na[(year-1960+1)] <- GDP_per_capita$Value[i]
+  i = i + 1
+}
+GDP_per_capita_ts <- ts(data = GDP_per_capita_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_ts)){
+    GDP_per_capita_kalman <- na.kalman(GDP_per_capita_ts)
+} else{
+    GDP_per_capita_kalman <- GDP_per_capita_ts
+}
+cons_USA$'GDP per capita (constant 2005 US$)' <- GDP_per_capita_kalman
+plotNA.imputations(GDP_per_capita_ts, GDP_per_capita_kalman, main = "GDP per capita constant 2005 US$ USA")
+
+#GDP per capita growth annual %
+GDP_per_capita_growth <- sqldf('select Year, Value from USA_indicators where IndicatorName == "GDP per capita growth (annual %)"')
+GDP_per_capita_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita_growth$Year){
+  GDP_per_capita_growth_na[(year-1960+1)] <- GDP_per_capita_growth$Value[i]
+  i = i + 1
+}
+GDP_per_capita_growth_ts <- ts(data = GDP_per_capita_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_growth_ts)){
+    GDP_per_capita_growth_kalman <- na.kalman(GDP_per_capita_growth_ts)
+} else{
+    GDP_per_capita_growth_kalman <- GDP_per_capita_growth_ts
+}
+cons_USA$'GDP per capita growth (annual %)' <- GDP_per_capita_growth_kalman
+plotNA.imputations(GDP_per_capita_growth_ts, GDP_per_capita_growth_kalman, main = "GDP per capita growth annual % USA")
+
+
+View(cons_USA)
+```
+
+Consumption INDIA
+```{r}
+year <- sqldf('select distinct Year from world_indicators')
+cons_IND <- data.frame(year)
+
+#household consumption
+
+h_cons <- sqldf('select Year, Value from IND_indicators where IndicatorName == "Household final consumption expenditure per capita (constant 2005 US$)"')
+h_cons_na <- rep(NA, 56)
+i <- 1
+for (year in h_cons$Year){
+ h_cons_na[(year-1960+1)] <- h_cons$Value[i]
+  i = i + 1
+}
+h_cons_ts <- ts(data = h_cons_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(h_cons_ts)){
+    h_cons_kalman <- na.kalman(h_cons_ts)
+} else{
+    h_cons_kalman <- h_cons_ts
+}
+cons_IND$'Household final consumption expenditure per capita (constant 2005 US$)' <- h_cons_kalman
+plotNA.imputations(h_cons_ts, h_cons_kalman, main = "Household final consumption expenditure per capita (constant 2005 US$) IND")
+
+#Inflation, Consumer prices
+inflation <- sqldf('select Year, Value from IND_indicators where IndicatorName == "Inflation, consumer prices (annual %)"')
+inflation_na <- rep(NA, 56)
+i <- 1
+for (year in inflation$Year){
+  inflation_na[(year-1960+1)] <- inflation$Value[i]
+  i = i + 1
+}
+inflation_ts <- ts(data = inflation_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(inflation_ts)){
+    inflation_kalman <- na.kalman(inflation_ts)
+} else{
+    inflation_kalman <- inflation_ts
+}
+cons_IND$'Inflation, consumer prices (annual %)' <- inflation_kalman
+plotNA.imputations(inflation_ts, inflation_kalman, main = "Inflation IND")
+
+#Total Unemployment
+unemployment <- sqldf('select Year, Value from IND_indicators where IndicatorName == "Unemployment, total (% of total labor force)"')
+unemployment_na <- rep(NA, 56)
+i <- 1
+for (year in unemployment$Year){
+  unemployment_na[(year-1960+1)] <- unemployment$Value[i]
+  i = i + 1
+}
+unemployment_ts <- ts(data = unemployment_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(unemployment_ts)){
+    unemployment_kalman <- na.kalman(unemployment_ts)
+} else{
+    unemployment_kalman <- unemployment_ts
+}
+cons_IND$'Unemployment, total (% of total labor force)' <- unemployment_kalman
+plotNA.imputations(unemployment_ts, unemployment_kalman, main = "Unemployment IND")
+
+
+#Government debt, total % of GDP
+government_debt <- sqldf('select Year, Value from IND_indicators where IndicatorName == "Central government debt, total (% of GDP)"')
+government_debt_na <- rep(NA, 56)
+i <- 1
+for (year in government_debt$Year){
+  government_debt_na[(year-1960+1)] <- government_debt$Value[i]
+  i = i + 1
+}
+government_debt_ts <- ts(data = government_debt_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(government_debt_ts)){
+    government_debt_kalman <- na.kalman(government_debt_ts)
+} else{
+    government_debt_kalman <- government_debt_ts
+}
+cons_IND$'Central government debt, total (% of GDP)' <- government_debt_kalman
+plotNA.imputations(government_debt_ts, government_debt_kalman, main = "Government debt % of GDP IND")
+
+#GDP growth annual %
+GDP_growth <- sqldf('select Year, Value from IND_indicators where IndicatorName == "GDP growth (annual %)"')
+GDP_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_growth$Year){
+  GDP_growth_na[(year-1960+1)] <- GDP_growth$Value[i]
+  i = i + 1
+} 
+GDP_growth_ts <- ts(data = GDP_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_growth_ts)){
+    GDP_growth_kalman <- na.kalman(GDP_growth_ts)
+} else{
+    GDP_growth_kalman <- GDP_growth_ts
+}
+cons_IND$'GDP growth (annual %)' <- GDP_growth_kalman
+plotNA.imputations(GDP_growth_ts, GDP_growth_kalman, main = "GDP growth annual % IND")
+
+#GDP per capita constant 2005 US$
+GDP_per_capita <- sqldf('select Year, Value from IND_indicators where IndicatorName == "GDP per capita (constant 2005 US$)"')
+GDP_per_capita_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita$Year){
+  GDP_per_capita_na[(year-1960+1)] <- GDP_per_capita$Value[i]
+  i = i + 1
+}
+GDP_per_capita_ts <- ts(data = GDP_per_capita_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_ts)){
+    GDP_per_capita_kalman <- na.kalman(GDP_per_capita_ts)
+} else{
+    GDP_per_capita_kalman <- GDP_per_capita_ts
+}
+cons_IND$'GDP per capita (constant 2005 US$)' <- GDP_per_capita_kalman
+plotNA.imputations(GDP_per_capita_ts, GDP_per_capita_kalman, main = "GDP per capita constant 2005 US$ IND")
+
+#GDP per capita growth annual %
+GDP_per_capita_growth <- sqldf('select Year, Value from IND_indicators where IndicatorName == "GDP per capita growth (annual %)"')
+GDP_per_capita_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita_growth$Year){
+  GDP_per_capita_growth_na[(year-1960+1)] <- GDP_per_capita_growth$Value[i]
+  i = i + 1
+}
+GDP_per_capita_growth_ts <- ts(data = GDP_per_capita_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_growth_ts)){
+    GDP_per_capita_growth_kalman <- na.kalman(GDP_per_capita_growth_ts)
+} else{
+    GDP_per_capita_growth_kalman <- GDP_per_capita_growth_ts
+}
+cons_IND$'GDP per capita growth (annual %)' <- GDP_per_capita_growth_kalman
+plotNA.imputations(GDP_per_capita_growth_ts, GDP_per_capita_growth_kalman, main = "GDP per capita growth annual % IND")
+
+
+View(cons_IND)
+```
+
+Consumption FRANCE
+```{r}
+year <- sqldf('select distinct Year from world_indicators')
+cons_FRA <- data.frame(year)
+
+#household consumption
+h_cons <- sqldf('select Year, Value from FRA_indicators where IndicatorName == "Household final consumption expenditure per capita (constant 2005 US$)"')
+h_cons_na <- rep(NA, 56)
+i <- 1
+for (year in h_cons$Year){
+ h_cons_na[(year-1960+1)] <- h_cons$Value[i]
+  i = i + 1
+}
+h_cons_ts <- ts(data = h_cons_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(h_cons_ts)){
+    h_cons_kalman <- na.kalman(h_cons_ts)
+} else{
+    h_cons_kalman <- h_cons_ts
+}
+cons_FRA$'Household final consumption expenditure per capita (constant 2005 US$)' <- h_cons_kalman
+plotNA.imputations(h_cons_ts, h_cons_kalman, main = "Household final consumption expenditure per capita (constant 2005 US$) FRA")
+
+#Inflation, Consumer prices
+inflation <- sqldf('select Year, Value from FRA_indicators where IndicatorName == "Inflation, consumer prices (annual %)"')
+inflation_na <- rep(NA, 56)
+i <- 1
+for (year in inflation$Year){
+  inflation_na[(year-1960+1)] <- inflation$Value[i]
+  i = i + 1
+}
+inflation_ts <- ts(data = inflation_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(inflation_ts)){
+    inflation_kalman <- na.kalman(inflation_ts)
+} else{
+    inflation_kalman <- inflation_ts
+}
+cons_FRA$'Inflation, consumer prices (annual %)' <- inflation_kalman
+plotNA.imputations(inflation_ts, inflation_kalman, main = "Inflation FRA")
+
+#Total Unemployment
+unemployment <- sqldf('select Year, Value from FRA_indicators where IndicatorName == "Unemployment, total (% of total labor force)"')
+unemployment_na <- rep(NA, 56)
+i <- 1
+for (year in unemployment$Year){
+  unemployment_na[(year-1960+1)] <- unemployment$Value[i]
+  i = i + 1
+}
+unemployment_ts <- ts(data = unemployment_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(unemployment_ts)){
+    unemployment_kalman <- na.kalman(unemployment_ts)
+} else{
+    unemployment_kalman <- unemployment_ts
+}
+cons_FRA$'Unemployment, total (% of total labor force)' <- unemployment_kalman
+plotNA.imputations(unemployment_ts, unemployment_kalman, main = "Unemployment FRA")
+
+
+#Government debt, total % of GDP
+government_debt <- sqldf('select Year, Value from FRA_indicators where IndicatorName == "Central government debt, total (% of GDP)"')
+government_debt_na <- rep(NA, 56)
+i <- 1
+for (year in government_debt$Year){
+  government_debt_na[(year-1960+1)] <- government_debt$Value[i]
+  i = i + 1
+}
+government_debt_ts <- ts(data = government_debt_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(government_debt_ts)){
+    government_debt_kalman <- na.kalman(government_debt_ts)
+} else{
+    government_debt_kalman <- government_debt_ts
+}
+cons_FRA$'Central government debt, total (% of GDP)' <- government_debt_kalman
+plotNA.imputations(government_debt_ts, government_debt_kalman, main = "Government debt % of GDP FRA")
+
+#GDP growth annual %
+GDP_growth <- sqldf('select Year, Value from FRA_indicators where IndicatorName == "GDP growth (annual %)"')
+GDP_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_growth$Year){
+  GDP_growth_na[(year-1960+1)] <- GDP_growth$Value[i]
+  i = i + 1
+} 
+GDP_growth_ts <- ts(data = GDP_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_growth_ts)){
+    GDP_growth_kalman <- na.kalman(GDP_growth_ts)
+} else{
+    GDP_growth_kalman <- GDP_growth_ts
+}
+cons_FRA$'GDP growth (annual %)' <- GDP_growth_kalman
+plotNA.imputations(GDP_growth_ts, GDP_growth_kalman, main = "GDP growth annual % FRA")
+
+#GDP per capita constant 2005 US$
+GDP_per_capita <- sqldf('select Year, Value from FRA_indicators where IndicatorName == "GDP per capita (constant 2005 US$)"')
+GDP_per_capita_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita$Year){
+  GDP_per_capita_na[(year-1960+1)] <- GDP_per_capita$Value[i]
+  i = i + 1
+}
+GDP_per_capita_ts <- ts(data = GDP_per_capita_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_ts)){
+    GDP_per_capita_kalman <- na.kalman(GDP_per_capita_ts)
+} else{
+    GDP_per_capita_kalman <- GDP_per_capita_ts
+}
+cons_FRA$'GDP per capita (constant 2005 US$)' <- GDP_per_capita_kalman
+plotNA.imputations(GDP_per_capita_ts, GDP_per_capita_kalman, main = "GDP per capita constant 2005 US$ FRA")
+
+#GDP per capita growth annual %
+GDP_per_capita_growth <- sqldf('select Year, Value from FRA_indicators where IndicatorName == "GDP per capita growth (annual %)"')
+GDP_per_capita_growth_na <- rep(NA, 56)
+i <- 1
+for (year in GDP_per_capita_growth$Year){
+  GDP_per_capita_growth_na[(year-1960+1)] <- GDP_per_capita_growth$Value[i]
+  i = i + 1
+}
+GDP_per_capita_growth_ts <- ts(data = GDP_per_capita_growth_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(GDP_per_capita_growth_ts)){
+    GDP_per_capita_growth_kalman <- na.kalman(GDP_per_capita_growth_ts)
+} else{
+    GDP_per_capita_growth_kalman <- GDP_per_capita_growth_ts
+}
+cons_FRA$'GDP per capita growth (annual %)' <- GDP_per_capita_growth_kalman
+plotNA.imputations(GDP_per_capita_growth_ts, GDP_per_capita_growth_kalman, main = "GDP per capita growth annual % FRA")
+
+
+View(cons_FRA)
+```
+
+
+
+
+#I was trying to get the plot to show the legend by changing the time series to numeric vectors but it is not working
+
+GDP growth
+```{r}
+ggplot() + 
+geom_point(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`GDP growth (annual %)`), color = "yellow") + geom_point(data = cons_CHN, aes(x = cons_CHN$Year, y = cons_CHN$`GDP growth (annual %)`), color = "red") + geom_point(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`GDP growth (annual %)`), color = "orange") + geom_point(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`GDP growth (annual %)`), color = "green") + geom_point(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`GDP growth (annual %)`), color = "blue") + geom_line(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`GDP growth (annual %)`), color = "yellow") + geom_line(data = cons_CHN, aes(x = cons_CHN$Year, y = cons_CHN$`GDP growth (annual %)`), color = "red") + geom_line(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`GDP growth (annual %)`), color = "orange") + geom_line(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`GDP growth (annual %)`), color = "green") + geom_line(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`GDP growth (annual %)`), color = "blue") + ggtitle("GDP growth (annual %)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = "top")  + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```
+
+GDP per capita growth
+```{r}
+ggplot() + 
+geom_point(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`GDP per capita growth (annual %)`), color = "yellow") + geom_point(data = cons_CHN, aes(x = cons_CHN$Year, y = cons_CHN$`GDP per capita growth (annual %)`), color = "red") + geom_point(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`GDP per capita growth (annual %)`), color = "orange") + geom_point(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`GDP per capita growth (annual %)`), color = "green") + geom_point(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`GDP per capita growth (annual %)`), color = "blue") + geom_line(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`GDP per capita growth (annual %)`), color = "yellow") + geom_line(data = cons_CHN, aes(x = cons_CHN$Year, y = cons_CHN$`GDP per capita growth (annual %)`), color = "red") + geom_line(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`GDP per capita growth (annual %)`), color = "orange") + geom_line(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`GDP per capita growth (annual %)`), color = "green") + geom_line(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`GDP per capita growth (annual %)`), color = "blue") + ggtitle("GDP per capita growth (annual %)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = "top")  + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```
+
+Household final consumption expenditure per capita (constant 2005 US$)
+```{r}
+ggplot() + 
+geom_point(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "yellow") + geom_point(data = cons_CHN, aes(x = cons_CHN$Year, y = cons_CHN$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "red") + geom_point(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "orange") + geom_point(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "green") + geom_point(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "blue") + geom_line(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "yellow") + geom_line(data = cons_CHN, aes(x = cons_CHN$Year, y = cons_CHN$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "red") + geom_line(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "orange") + geom_line(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "green") + geom_line(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`Household final consumption expenditure per capita (constant 2005 US$)`), color = "blue") + ggtitle("Household final consumption expenditure per capita (constant 2005 US$)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = "top")  + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```
+
+inlfation
+
+```{r}
+ggplot() + 
+geom_point(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`Inflation, consumer prices (annual %)`), color = "yellow") + geom_point(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`Inflation, consumer prices (annual %)`), color = "orange") + geom_point(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`Inflation, consumer prices (annual %)`), color = "green") + geom_point(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`Inflation, consumer prices (annual %)`), color = "blue") + geom_line(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`Inflation, consumer prices (annual %)`), color = "yellow") + geom_line(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`Inflation, consumer prices (annual %)`), color = "orange") + geom_line(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`Inflation, consumer prices (annual %)`), color = "green") + geom_line(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`Inflation, consumer prices (annual %)`), color = "blue") + ggtitle("Inflation, consumer prices (annual %)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = "top")  + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```
+
+```{r}
+ggplot() + 
+geom_point(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`GDP per capita (constant 2005 US$)`), color = "yellow") + geom_point(data = cons_CHN, aes(x = cons_CHN$Year, y = cons_CHN$`GDP per capita (constant 2005 US$)`), color = "red") + geom_point(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`GDP per capita (constant 2005 US$)`), color = "orange") + geom_point(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`GDP per capita (constant 2005 US$)`), color = "green") + geom_point(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`GDP per capita (constant 2005 US$)`), color = "blue") + geom_line(data = cons_ESP, aes(x = cons_ESP$Year, y = cons_ESP$`GDP per capita (constant 2005 US$)`), color = "yellow") + geom_line(data = cons_CHN, aes(x = cons_CHN$Year, y = cons_CHN$`GDP per capita (constant 2005 US$)`), color = "red") + geom_line(data = cons_IND, aes(x = cons_IND$Year, y = cons_IND$`GDP per capita (constant 2005 US$)`), color = "orange") + geom_line(data = cons_FRA, aes(x = cons_FRA$Year, y = cons_FRA$`GDP per capita (constant 2005 US$)`), color = "green") + geom_line(data = cons_USA, aes(x = cons_USA$Year, y = cons_USA$`GDP per capita (constant 2005 US$)`), color = "blue") + ggtitle("GDP per capita (constant 2005 US$)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = "top")  + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```
+
+ARIMA FIT SPAIN
+```{r}
+#check if the response time series is stationary
+adf.test(cons_ESP$`Household final consumption expenditure per capita (constant 2005 US$)`)
+
+#non-stationary
+h_con_stationary <- diff(cons_ESP$`Household final consumption expenditure per capita (constant 2005 US$)`, differences = 1)
+plot(h_con_stationary)
+cons.train <- h_con_stationary[1:51]
+cons.test <- h_con_stationary[52:55]
+
+#fit ARIMA model
+arima.fit <- auto.arima(cons.train, stationary = TRUE, seasonal = FALSE)
+summary(arima.fit)
+
+fcast <- forecast(arima.fit, h = 4)
+plot(fcast)
+lines(ts(h_con_stationary))
+mse(as.numeric(cons.test), as.numeric(fcast$mean))
+```
+
+ARIMA FIT CHINA
+```{r}
+#check if the response time series is stationary
+adf.test(cons_CHN$`Household final consumption expenditure per capita (constant 2005 US$)`)
+
+#non-stationary
+h_con_stationary <- diff(cons_CHN$`Household final consumption expenditure per capita (constant 2005 US$)`, differences = 1)
+plot(h_con_stationary)
+cons.train <- h_con_stationary[1:51]
+cons.test <- h_con_stationary[52:55]
+
+#fit ARIMA model
+arima.fit <- auto.arima(cons.train, stationary = TRUE, seasonal = FALSE)
+summary(arima.fit)
+
+fcast <- forecast(arima.fit, h = 4)
+plot(fcast)
+lines(ts(h_con_stationary))
+mse(as.numeric(cons.test), as.numeric(fcast$mean))
+```
+
+ARIMA FIT INDIA
+```{r}
+#check if the response time series is stationary
+adf.test(cons_IND$`Household final consumption expenditure per capita (constant 2005 US$)`)
+
+#non-stationary
+h_con_stationary <- diff(cons_IND$`Household final consumption expenditure per capita (constant 2005 US$)`, differences = 1)
+plot(h_con_stationary)
+cons.train <- h_con_stationary[1:51]
+cons.test <- h_con_stationary[52:55]
+
+#fit ARIMA model
+arima.fit <- auto.arima(cons.train, stationary = TRUE, seasonal = FALSE)
+summary(arima.fit)
+
+fcast <- forecast(arima.fit, h = 4)
+plot(fcast)
+lines(ts(h_con_stationary))
+mse(as.numeric(cons.test), as.numeric(fcast$mean))
+```
+
+ARIMA FIT FRANCE
+```{r}
+#check if the response time series is stationary
+adf.test(cons_FRA$`Household final consumption expenditure per capita (constant 2005 US$)`)
+
+#non-stationary
+h_con_stationary <- diff(cons_FRA$`Household final consumption expenditure per capita (constant 2005 US$)`, differences = 1)
+plot(h_con_stationary)
+cons.train <- h_con_stationary[1:51]
+cons.test <- h_con_stationary[52:55]
+
+#fit ARIMA model
+arima.fit <- auto.arima(cons.train, stationary = TRUE, seasonal = FALSE)
+summary(arima.fit)
+
+fcast <- forecast(arima.fit, h = 4)
+plot(fcast)
+lines(ts(h_con_stationary))
+mse(as.numeric(cons.test), as.numeric(fcast$mean))
+```
+
+ARIMA FIT USA
+```{r}
+#check if the response time series is stationary
+adf.test(cons_USA$`Household final consumption expenditure per capita (constant 2005 US$)`)
+
+#non-stationary
+h_con_stationary <- diff(cons_USA$`Household final consumption expenditure per capita (constant 2005 US$)`, differences = 1)
+plot(h_con_stationary)
+cons.train <- h_con_stationary[1:51]
+cons.test <- h_con_stationary[52:55]
+
+#fit ARIMA model
+arima.fit <- auto.arima(cons.train, stationary = TRUE, seasonal = FALSE)
+summary(arima.fit)
+
+fcast <- forecast(arima.fit, h = 4)
+plot(fcast)
+lines(ts(h_con_stationary))
+mse(as.numeric(cons.test), as.numeric(fcast$mean))
+```
+

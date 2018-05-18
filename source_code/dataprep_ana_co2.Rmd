@@ -1,0 +1,949 @@
+---
+title: "Indicators pablo"
+author: "Cristina"
+date: "29/3/2018"
+output: html_document
+---
+
+Load libraries
+```{r}
+library(readr)
+library(sqldf)
+library(dplyr)
+library(plyr)
+library(ggplot2)
+library(stats)
+library(imputeTS)
+```
+
+```{r}
+library(dplyr)
+library(readr)
+library(sqldf)
+Indicators <- read.csv("/Users/cristinafernandezgarcia/Desktop/Data/Indicators.csv", header = T)
+```
+
+# SPAIN
+```{r}
+Indicators_Spain <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "ESP" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+
+Mortality_ESP <- data.frame(year)
+
+indicatornames <- subset(sqldf('select distinct IndicatorName from Indicators_Spain'))
+```
+
+```{r} 
+#CO2 emissions (kt)
+CO2_emissions <- sqldf('select Year, Value from Indicators_Spain where IndicatorName == "CO2 emissions (kt)"')
+CO2_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in CO2_emissions$Year){
+ CO2_emissions_na[(year-1960+1)] <- CO2_emissions$Value[i]
+  i = i + 1
+}
+CO2_emissions_ts <- ts(data = CO2_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(CO2_emissions_ts)){
+    CO2_emissions_kalman <- na.kalman(CO2_emissions_ts)
+} else{
+    CO2_emissions_kalman <- CO2_emissions_ts
+}
+Mortality_ESP$'CO2 emissions (kt)' <- CO2_emissions_kalman
+plotNA.imputations(CO2_emissions_ts, CO2_emissions_kalman, legend = TRUE, main = "CO2 emissions ESP")
+
+
+#Methane emissions (kt of CO2 equivalent)
+methane_emissions <- sqldf('select Year, Value from Indicators_Spain where IndicatorName == "Methane emissions (kt of CO2 equivalent)"')
+methane_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in methane_emissions$Year){
+ methane_emissions_na[(year-1960+1)] <- methane_emissions$Value[i]
+  i = i + 1
+}
+methane_emissions_ts <- ts(data = methane_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(methane_emissions_ts)){
+    methane_emissions_kalman <- na.kalman(methane_emissions_ts)
+} else{
+    methane_emissions_kalman <- methane_emissions_ts
+}
+Mortality_ESP$'Methane emissions (kt of CO2 equivalent)' <- methane_emissions_kalman
+plotNA.imputations(methane_emissions_ts, methane_emissions_kalman, legend = TRUE, main = "Methane emissions (kt of CO2 equivalent) ESP")
+
+
+#Forest area (sq. km)
+forest_area <- sqldf('select Year, Value from Indicators_Spain where IndicatorName == "Forest area (sq. km)"')
+forest_area_na <- rep(NA, 56)
+i <- 1
+for (year in forest_area$Year){
+ forest_area_na[(year-1960+1)] <- forest_area$Value[i]
+  i = i + 1
+}
+forest_area_ts <- ts(data = forest_area_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(forest_area_ts)){
+    forest_area_kalman <- na.kalman(forest_area_ts)
+} else{
+    forest_area_kalman <- forest_area_ts
+}
+Mortality_ESP$'Forest area (sq. km)' <- forest_area_kalman
+plotNA.imputations(forest_area_ts, forest_area_kalman, legend = TRUE, main = "Forest area (sq. km) ESP")
+
+
+#GDP per capita (current US$)
+gdp <- sqldf('select Year, Value from Indicators_Spain where IndicatorName == "GDP per capita (current US$)"')
+gdp_na <- rep(NA, 56)
+i <- 1
+for (year in gdp$Year){
+ gdp_na[(year-1960+1)] <- gdp$Value[i]
+  i = i + 1
+}
+gdp_ts <- ts(data = gdp_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(gdp_ts)){
+    gdp_kalman <- na.kalman(gdp_ts)
+} else{
+    gdp_kalman <- gdp_ts
+}
+Mortality_ESP$'GDP per capita (current US$)' <- gdp_kalman
+plotNA.imputations(gdp_ts, gdp_kalman, legend = TRUE, main = "GDP per capita (current US$) ESP")
+
+
+#Death rate, crude (per 1,000 people)
+death_rate <- sqldf('select Year, Value from Indicators_Spain where IndicatorName == "Death rate, crude (per 1,000 people)"')
+death_rate_na <- rep(NA, 56)
+i <- 1
+for (year in death_rate$Year){
+ death_rate_na[(year-1960+1)] <- death_rate$Value[i]
+  i = i + 1
+}
+death_rate_ts <- ts(data = death_rate_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(death_rate_ts)){
+    death_rate_kalman <- na.kalman(death_rate_ts)
+} else{
+    death_rate_kalman <- death_rate_ts
+}
+Mortality_ESP$'Death rate, crude (per 1,000 people)' <- death_rate_kalman
+plotNA.imputations(death_rate_ts, death_rate_kalman, legend = TRUE, main = "Death rate, crude (per 1,000 people) ESP")
+
+
+#Mortality rate, adult, female (per 1,000 female adults)
+mort_fem <- sqldf('select Year, Value from Indicators_Spain where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_ESP$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) ESP")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_Spain where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_ESP$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) ESP")
+
+```
+
+
+# USA
+```{r}
+Indicators_USA <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "USA" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+
+Mortality_USA <- data.frame(year)
+```
+
+```{r}
+#CO2 emissions (kt)
+CO2_emissions <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "CO2 emissions (kt)"')
+CO2_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in CO2_emissions$Year){
+ CO2_emissions_na[(year-1960+1)] <- CO2_emissions$Value[i]
+  i = i + 1
+}
+CO2_emissions_ts <- ts(data = CO2_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(CO2_emissions_ts)){
+    CO2_emissions_kalman <- na.kalman(CO2_emissions_ts)
+} else{
+    CO2_emissions_kalman <- CO2_emissions_ts
+}
+Mortality_USA$'CO2 emissions (kt)' <- CO2_emissions_kalman
+plotNA.imputations(CO2_emissions_ts, CO2_emissions_kalman, legend = TRUE, main = "CO2 emissions USA")
+
+
+#Methane emissions (kt of CO2 equivalent)
+methane_emissions <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "Methane emissions (kt of CO2 equivalent)"')
+methane_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in methane_emissions$Year){
+ methane_emissions_na[(year-1960+1)] <- methane_emissions$Value[i]
+  i = i + 1
+}
+methane_emissions_ts <- ts(data = methane_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(methane_emissions_ts)){
+    methane_emissions_kalman <- na.kalman(methane_emissions_ts)
+} else{
+    methane_emissions_kalman <- methane_emissions_ts
+}
+Mortality_USA$'Methane emissions (kt of CO2 equivalent)' <- methane_emissions_kalman
+plotNA.imputations(methane_emissions_ts, methane_emissions_kalman, legend = TRUE, main = "Methane emissions (kt of CO2 equivalent) USA")
+
+
+#Forest area (sq. km)
+forest_area <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "Forest area (sq. km)"')
+forest_area_na <- rep(NA, 56)
+i <- 1
+for (year in forest_area$Year){
+ forest_area_na[(year-1960+1)] <- forest_area$Value[i]
+  i = i + 1
+}
+forest_area_ts <- ts(data = forest_area_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(forest_area_ts)){
+    forest_area_kalman <- na.kalman(forest_area_ts)
+} else{
+    forest_area_kalman <- forest_area_ts
+}
+Mortality_USA$'Forest area (sq. km)' <- forest_area_kalman
+plotNA.imputations(forest_area_ts, forest_area_kalman, legend = TRUE, main = "Forest area (sq. km) USA")
+
+
+#GDP per capita (current US$)
+gdp <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "GDP per capita (current US$)"')
+gdp_na <- rep(NA, 56)
+i <- 1
+for (year in gdp$Year){
+ gdp_na[(year-1960+1)] <- gdp$Value[i]
+  i = i + 1
+}
+gdp_ts <- ts(data = gdp_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(gdp_ts)){
+    gdp_kalman <- na.kalman(gdp_ts)
+} else{
+    gdp_kalman <- gdp_ts
+}
+Mortality_USA$'GDP per capita (current US$)' <- gdp_kalman
+plotNA.imputations(gdp_ts, gdp_kalman, legend = TRUE, main = "GDP per capita (current US$) USA")
+
+
+#Death rate, crude (per 1,000 people)
+death_rate <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "Death rate, crude (per 1,000 people)"')
+death_rate_na <- rep(NA, 56)
+i <- 1
+for (year in death_rate$Year){
+ death_rate_na[(year-1960+1)] <- death_rate$Value[i]
+  i = i + 1
+}
+death_rate_ts <- ts(data = death_rate_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(death_rate_ts)){
+    death_rate_kalman <- na.kalman(death_rate_ts)
+} else{
+    death_rate_kalman <- death_rate_ts
+}
+Mortality_USA$'Death rate, crude (per 1,000 people)' <- death_rate_kalman
+plotNA.imputations(death_rate_ts, death_rate_kalman, legend = TRUE, main = "Death rate, crude (per 1,000 people) USA")
+
+
+#Mortality rate, adult, female (per 1,000 female adults)
+mort_fem <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_USA$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) USA")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_USA$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) USA")
+```
+
+
+# INDIA
+```{r}
+Indicators_India <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "IND" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+
+Mortality_India <- data.frame(year)
+```
+
+```{r}
+#CO2 emissions (kt)
+CO2_emissions <- sqldf('select Year, Value from Indicators_India where IndicatorName == "CO2 emissions (kt)"')
+CO2_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in CO2_emissions$Year){
+ CO2_emissions_na[(year-1960+1)] <- CO2_emissions$Value[i]
+  i = i + 1
+}
+CO2_emissions_ts <- ts(data = CO2_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(CO2_emissions_ts)){
+    CO2_emissions_kalman <- na.kalman(CO2_emissions_ts)
+} else{
+    CO2_emissions_kalman <- CO2_emissions_ts
+}
+Mortality_India$'CO2 emissions (kt)' <- CO2_emissions_kalman
+plotNA.imputations(CO2_emissions_ts, CO2_emissions_kalman, legend = TRUE, main = "CO2 emissions India")
+
+
+#Methane emissions (kt of CO2 equivalent)
+methane_emissions <- sqldf('select Year, Value from Indicators_India where IndicatorName == "Methane emissions (kt of CO2 equivalent)"')
+methane_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in methane_emissions$Year){
+ methane_emissions_na[(year-1960+1)] <- methane_emissions$Value[i]
+  i = i + 1
+}
+methane_emissions_ts <- ts(data = methane_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(methane_emissions_ts)){
+    methane_emissions_kalman <- na.kalman(methane_emissions_ts)
+} else{
+    methane_emissions_kalman <- methane_emissions_ts
+}
+Mortality_India$'Methane emissions (kt of CO2 equivalent)' <- methane_emissions_kalman
+plotNA.imputations(methane_emissions_ts, methane_emissions_kalman, legend = TRUE, main = "Methane emissions (kt of CO2 equivalent) India")
+
+
+#Forest area (sq. km)
+forest_area <- sqldf('select Year, Value from Indicators_India where IndicatorName == "Forest area (sq. km)"')
+forest_area_na <- rep(NA, 56)
+i <- 1
+for (year in forest_area$Year){
+ forest_area_na[(year-1960+1)] <- forest_area$Value[i]
+  i = i + 1
+}
+forest_area_ts <- ts(data = forest_area_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(forest_area_ts)){
+    forest_area_kalman <- na.kalman(forest_area_ts)
+} else{
+    forest_area_kalman <- forest_area_ts
+}
+Mortality_India$'Forest area (sq. km)' <- forest_area_kalman
+plotNA.imputations(forest_area_ts, forest_area_kalman, legend = TRUE, main = "Forest area (sq. km) India")
+
+
+#GDP per capita (current US$)
+gdp <- sqldf('select Year, Value from Indicators_India where IndicatorName == "GDP per capita (current US$)"')
+gdp_na <- rep(NA, 56)
+i <- 1
+for (year in gdp$Year){
+ gdp_na[(year-1960+1)] <- gdp$Value[i]
+  i = i + 1
+}
+gdp_ts <- ts(data = gdp_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(gdp_ts)){
+    gdp_kalman <- na.kalman(gdp_ts)
+} else{
+    gdp_kalman <- gdp_ts
+}
+Mortality_India$'GDP per capita (current US$)' <- gdp_kalman
+plotNA.imputations(gdp_ts, gdp_kalman, legend = TRUE, main = "GDP per capita (current US$) India")
+
+
+#Death rate, crude (per 1,000 people)
+death_rate <- sqldf('select Year, Value from Indicators_India where IndicatorName == "Death rate, crude (per 1,000 people)"')
+death_rate_na <- rep(NA, 56)
+i <- 1
+for (year in death_rate$Year){
+ death_rate_na[(year-1960+1)] <- death_rate$Value[i]
+  i = i + 1
+}
+death_rate_ts <- ts(data = death_rate_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(death_rate_ts)){
+    death_rate_kalman <- na.kalman(death_rate_ts)
+} else{
+    death_rate_kalman <- death_rate_ts
+}
+Mortality_India$'Death rate, crude (per 1,000 people)' <- death_rate_kalman
+plotNA.imputations(death_rate_ts, death_rate_kalman, legend = TRUE, main = "Death rate, crude (per 1,000 people) India")
+
+
+#Mortality rate, adult, female (per 1,000 female adults)
+mort_fem <- sqldf('select Year, Value from Indicators_India where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_India$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) India")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_India where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_India$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) India")
+```
+
+# CHINA
+```{r}
+Indicators_China <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "CHN" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+
+Mortality_China <- data.frame(year)
+```
+
+```{r}
+#CO2 emissions (kt)
+CO2_emissions <- sqldf('select Year, Value from Indicators_China where IndicatorName == "CO2 emissions (kt)"')
+CO2_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in CO2_emissions$Year){
+ CO2_emissions_na[(year-1960+1)] <- CO2_emissions$Value[i]
+  i = i + 1
+}
+CO2_emissions_ts <- ts(data = CO2_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(CO2_emissions_ts)){
+    CO2_emissions_kalman <- na.kalman(CO2_emissions_ts)
+} else{
+    CO2_emissions_kalman <- CO2_emissions_ts
+}
+Mortality_China$'CO2 emissions (kt)' <- CO2_emissions_kalman
+plotNA.imputations(CO2_emissions_ts, CO2_emissions_kalman, legend = TRUE, main = "CO2 emissions China")
+
+
+#Methane emissions (kt of CO2 equivalent)
+methane_emissions <- sqldf('select Year, Value from Indicators_China where IndicatorName == "Methane emissions (kt of CO2 equivalent)"')
+methane_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in methane_emissions$Year){
+ methane_emissions_na[(year-1960+1)] <- methane_emissions$Value[i]
+  i = i + 1
+}
+methane_emissions_ts <- ts(data = methane_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(methane_emissions_ts)){
+    methane_emissions_kalman <- na.kalman(methane_emissions_ts)
+} else{
+    methane_emissions_kalman <- methane_emissions_ts
+}
+Mortality_China$'Methane emissions (kt of CO2 equivalent)' <- methane_emissions_kalman
+plotNA.imputations(methane_emissions_ts, methane_emissions_kalman, legend = TRUE, main = "Methane emissions (kt of CO2 equivalent) China")
+
+
+#Forest area (sq. km)
+forest_area <- sqldf('select Year, Value from Indicators_China where IndicatorName == "Forest area (sq. km)"')
+forest_area_na <- rep(NA, 56)
+i <- 1
+for (year in forest_area$Year){
+ forest_area_na[(year-1960+1)] <- forest_area$Value[i]
+  i = i + 1
+}
+forest_area_ts <- ts(data = forest_area_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(forest_area_ts)){
+    forest_area_kalman <- na.kalman(forest_area_ts)
+} else{
+    forest_area_kalman <- forest_area_ts
+}
+Mortality_China$'Forest area (sq. km)' <- forest_area_kalman
+plotNA.imputations(forest_area_ts, forest_area_kalman, legend = TRUE, main = "Forest area (sq. km) China")
+
+
+#GDP per capita (current US$)
+gdp <- sqldf('select Year, Value from Indicators_China where IndicatorName == "GDP per capita (current US$)"')
+gdp_na <- rep(NA, 56)
+i <- 1
+for (year in gdp$Year){
+ gdp_na[(year-1960+1)] <- gdp$Value[i]
+  i = i + 1
+}
+gdp_ts <- ts(data = gdp_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(gdp_ts)){
+    gdp_kalman <- na.kalman(gdp_ts)
+} else{
+    gdp_kalman <- gdp_ts
+}
+Mortality_China$'GDP per capita (current US$)' <- gdp_kalman
+plotNA.imputations(gdp_ts, gdp_kalman, legend = TRUE, main = "GDP per capita (current US$) China")
+
+
+#Death rate, crude (per 1,000 people)
+death_rate <- sqldf('select Year, Value from Indicators_China where IndicatorName == "Death rate, crude (per 1,000 people)"')
+death_rate_na <- rep(NA, 56)
+i <- 1
+for (year in death_rate$Year){
+ death_rate_na[(year-1960+1)] <- death_rate$Value[i]
+  i = i + 1
+}
+death_rate_ts <- ts(data = death_rate_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(death_rate_ts)){
+    death_rate_kalman <- na.kalman(death_rate_ts)
+} else{
+    death_rate_kalman <- death_rate_ts
+}
+Mortality_China$'Death rate, crude (per 1,000 people)' <- death_rate_kalman
+plotNA.imputations(death_rate_ts, death_rate_kalman, legend = TRUE, main = "Death rate, crude (per 1,000 people) China")
+
+
+#Mortality rate, adult, female (per 1,000 female adults)
+mort_fem <- sqldf('select Year, Value from Indicators_China where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_China$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) China")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_China where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_China$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) China")
+```
+
+
+# FRANCE
+```{r}
+Indicators_France <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "FRA" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+
+Mortality_France <- data.frame(year)
+```
+
+```{r}
+#CO2 emissions (kt)
+CO2_emissions <- sqldf('select Year, Value from Indicators_France where IndicatorName == "CO2 emissions (kt)"')
+CO2_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in CO2_emissions$Year){
+ CO2_emissions_na[(year-1960+1)] <- CO2_emissions$Value[i]
+  i = i + 1
+}
+CO2_emissions_ts <- ts(data = CO2_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(CO2_emissions_ts)){
+    CO2_emissions_kalman <- na.kalman(CO2_emissions_ts)
+} else{
+    CO2_emissions_kalman <- CO2_emissions_ts
+}
+Mortality_France$'CO2 emissions (kt)' <- CO2_emissions_kalman
+plotNA.imputations(CO2_emissions_ts, CO2_emissions_kalman, legend = TRUE, main = "CO2 emissions France")
+
+
+#Methane emissions (kt of CO2 equivalent)
+methane_emissions <- sqldf('select Year, Value from Indicators_France where IndicatorName == "Methane emissions (kt of CO2 equivalent)"')
+methane_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in methane_emissions$Year){
+ methane_emissions_na[(year-1960+1)] <- methane_emissions$Value[i]
+  i = i + 1
+}
+methane_emissions_ts <- ts(data = methane_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(methane_emissions_ts)){
+    methane_emissions_kalman <- na.kalman(methane_emissions_ts)
+} else{
+    methane_emissions_kalman <- methane_emissions_ts
+}
+Mortality_France$'Methane emissions (kt of CO2 equivalent)' <- methane_emissions_kalman
+plotNA.imputations(methane_emissions_ts, methane_emissions_kalman, legend = TRUE, main = "Methane emissions (kt of CO2 equivalent) France")
+
+
+#Forest area (sq. km)
+forest_area <- sqldf('select Year, Value from Indicators_France where IndicatorName == "Forest area (sq. km)"')
+forest_area_na <- rep(NA, 56)
+i <- 1
+for (year in forest_area$Year){
+ forest_area_na[(year-1960+1)] <- forest_area$Value[i]
+  i = i + 1
+}
+forest_area_ts <- ts(data = forest_area_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(forest_area_ts)){
+    forest_area_kalman <- na.kalman(forest_area_ts)
+} else{
+    forest_area_kalman <- forest_area_ts
+}
+Mortality_France$'Forest area (sq. km)' <- forest_area_kalman
+plotNA.imputations(forest_area_ts, forest_area_kalman, legend = TRUE, main = "Forest area (sq. km) France")
+
+
+#GDP per capita (current US$)
+gdp <- sqldf('select Year, Value from Indicators_France where IndicatorName == "GDP per capita (current US$)"')
+gdp_na <- rep(NA, 56)
+i <- 1
+for (year in gdp$Year){
+ gdp_na[(year-1960+1)] <- gdp$Value[i]
+  i = i + 1
+}
+gdp_ts <- ts(data = gdp_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(gdp_ts)){
+    gdp_kalman <- na.kalman(gdp_ts)
+} else{
+    gdp_kalman <- gdp_ts
+}
+Mortality_France$'GDP per capita (current US$)' <- gdp_kalman
+plotNA.imputations(gdp_ts, gdp_kalman, legend = TRUE, main = "GDP per capita (current US$) France")
+
+
+#Death rate, crude (per 1,000 people)
+death_rate <- sqldf('select Year, Value from Indicators_France where IndicatorName == "Death rate, crude (per 1,000 people)"')
+death_rate_na <- rep(NA, 56)
+i <- 1
+for (year in death_rate$Year){
+ death_rate_na[(year-1960+1)] <- death_rate$Value[i]
+  i = i + 1
+}
+death_rate_ts <- ts(data = death_rate_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(death_rate_ts)){
+    death_rate_kalman <- na.kalman(death_rate_ts)
+} else{
+    death_rate_kalman <- death_rate_ts
+}
+Mortality_France$'Death rate, crude (per 1,000 people)' <- death_rate_kalman
+plotNA.imputations(death_rate_ts, death_rate_kalman, legend = TRUE, main = "Death rate, crude (per 1,000 people) France")
+
+
+#Mortality rate, adult, female (per 1,000 female adults)
+mort_fem <- sqldf('select Year, Value from Indicators_France where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_France$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) France")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_France where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_France$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) France")
+```
+
+
+# WORLD
+```{r}
+Indicators_World <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "WLD" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+
+Mortality_World <- data.frame(year)
+```
+
+```{r}
+#CO2 emissions (kt)
+CO2_emissions <- sqldf('select Year, Value from Indicators_World where IndicatorName == "CO2 emissions (kt)"')
+CO2_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in CO2_emissions$Year){
+ CO2_emissions_na[(year-1960+1)] <- CO2_emissions$Value[i]
+  i = i + 1
+}
+CO2_emissions_ts <- ts(data = CO2_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(CO2_emissions_ts)){
+    CO2_emissions_kalman <- na.kalman(CO2_emissions_ts)
+} else{
+    CO2_emissions_kalman <- CO2_emissions_ts
+}
+Mortality_World$'CO2 emissions (kt)' <- CO2_emissions_kalman
+plotNA.imputations(CO2_emissions_ts, CO2_emissions_kalman, legend = TRUE, main = "CO2 emissions World")
+
+
+#Methane emissions (kt of CO2 equivalent)
+methane_emissions <- sqldf('select Year, Value from Indicators_World where IndicatorName == "Methane emissions (kt of CO2 equivalent)"')
+methane_emissions_na <- rep(NA, 56)
+i <- 1
+for (year in methane_emissions$Year){
+ methane_emissions_na[(year-1960+1)] <- methane_emissions$Value[i]
+  i = i + 1
+}
+methane_emissions_ts <- ts(data = methane_emissions_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(methane_emissions_ts)){
+    methane_emissions_kalman <- na.kalman(methane_emissions_ts)
+} else{
+    methane_emissions_kalman <- methane_emissions_ts
+}
+Mortality_World$'Methane emissions (kt of CO2 equivalent)' <- methane_emissions_kalman
+plotNA.imputations(methane_emissions_ts, methane_emissions_kalman, legend = TRUE, main = "Methane emissions (kt of CO2 equivalent) World")
+
+
+#Forest area (sq. km)
+forest_area <- sqldf('select Year, Value from Indicators_World where IndicatorName == "Forest area (sq. km)"')
+forest_area_na <- rep(NA, 56)
+i <- 1
+for (year in forest_area$Year){
+ forest_area_na[(year-1960+1)] <- forest_area$Value[i]
+  i = i + 1
+}
+forest_area_ts <- ts(data = forest_area_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(forest_area_ts)){
+    forest_area_kalman <- na.kalman(forest_area_ts)
+} else{
+    forest_area_kalman <- forest_area_ts
+}
+Mortality_World$'Forest area (sq. km)' <- forest_area_kalman
+plotNA.imputations(forest_area_ts, forest_area_kalman, legend = TRUE, main = "Forest area (sq. km) World")
+
+
+#GDP per capita (current US$)
+gdp <- sqldf('select Year, Value from Indicators_World where IndicatorName == "GDP per capita (current US$)"')
+gdp_na <- rep(NA, 56)
+i <- 1
+for (year in gdp$Year){
+ gdp_na[(year-1960+1)] <- gdp$Value[i]
+  i = i + 1
+}
+gdp_ts <- ts(data = gdp_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(gdp_ts)){
+    gdp_kalman <- na.kalman(gdp_ts)
+} else{
+    gdp_kalman <- gdp_ts
+}
+Mortality_World$'GDP per capita (current US$)' <- gdp_kalman
+plotNA.imputations(gdp_ts, gdp_kalman, legend = TRUE, main = "GDP per capita (current US$) World")
+
+
+#Death rate, crude (per 1,000 people)
+death_rate <- sqldf('select Year, Value from Indicators_World where IndicatorName == "Death rate, crude (per 1,000 people)"')
+death_rate_na <- rep(NA, 56)
+i <- 1
+for (year in death_rate$Year){
+ death_rate_na[(year-1960+1)] <- death_rate$Value[i]
+  i = i + 1
+}
+death_rate_ts <- ts(data = death_rate_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(death_rate_ts)){
+    death_rate_kalman <- na.kalman(death_rate_ts)
+} else{
+    death_rate_kalman <- death_rate_ts
+}
+Mortality_World$'Death rate, crude (per 1,000 people)' <- death_rate_kalman
+plotNA.imputations(death_rate_ts, death_rate_kalman, legend = TRUE, main = "Death rate, crude (per 1,000 people) World")
+
+
+#Mortality rate, adult, female (per 1,000 female adults)
+mort_fem <- sqldf('select Year, Value from Indicators_World where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_World$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) World")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_World where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_World$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) World")
+```
+
+
+#GRAFICO DE TODOS LOS PAISES Y EL MUNDO 
+
+```{r}
+ggplot() + 
+geom_point(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Death rate, crude (per 1,000 people)`), color = "yellow") + 
+geom_point(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`Death rate, crude (per 1,000 people)`), color = "red") + 
+geom_point(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`Death rate, crude (per 1,000 people)`), color = "orange") +
+geom_point(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`Death rate, crude (per 1,000 people)`), color = "green") + 
+geom_point(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Death rate, crude (per 1,000 people)`), color = "blue") + 
+geom_line(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Death rate, crude (per 1,000 people)`), color = "yellow") + 
+geom_line(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`Death rate, crude (per 1,000 people)`), color = "red") + 
+geom_line(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`Death rate, crude (per 1,000 people)`), color = "orange") + 
+geom_line(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`Death rate, crude (per 1,000 people)`), color = "green") + 
+geom_line(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Death rate, crude (per 1,000 people)`), color = "blue") + 
+ggtitle("Death rate, crude (per 1,000 people)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = c(0, 1),legend.justification = c(0, 1)) + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```
+
+```{r}
+ggplot() + 
+geom_point(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Death rate, crude (per 1,000 people)`), color = "yellow") + 
+geom_line(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Death rate, crude (per 1,000 people)`), color = "yellow") + 
+geom_point(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`Death rate, crude (per 1,000 people)`), color = "red") + 
+geom_line(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`Death rate, crude (per 1,000 people)`), color = "red") + 
+ggtitle("Death rate, crude (per 1,000 people)") + xlab('YEAR') + ylab('VALUE') +
+theme(legend.position = "bottom") + scale_fill_continuous(name = "Country", labels = c("ESP", "CHI"))
+```
+
+```{r}
+library(scales)
+
+xesp = Mortality_ESP$Year
+yesp = Mortality_ESP$`Death rate, crude (per 1,000 people)`
+
+yesp_trans = trans_new(yesp)
+
+ggplot() + 
+geom_point(data = Mortality_ESP, aes(x = xesp, y = yesp_trans), color = "yellow") + 
+geom_line(data = Mortality_ESP, aes(x = xesp, y = yesp_trans), color = "yellow") + 
+ggtitle("Death rate, crude (per 1,000 people)") + xlab('YEAR') + ylab('VALUE') +
+theme(legend.position = "bottom") + scale_fill_continuous(name = "Country", labels = c("ESP"))
+```
+
+```{r}
+ggplot() + 
+geom_point(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`CO2 emissions (kt)`), color = "yellow") + 
+geom_point(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`CO2 emissions (kt)`), color = "red") + 
+geom_point(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`CO2 emissions (kt)`), color = "orange") +
+geom_point(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`CO2 emissions (kt)`), color = "green") + 
+geom_point(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`CO2 emissions (kt)`), color = "blue") + 
+geom_line(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`CO2 emissions (kt)`), color = "yellow") + 
+geom_line(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`CO2 emissions (kt)`), color = "red") + geom_line(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`CO2 emissions (kt)`), color = "orange") +
+geom_line(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`CO2 emissions (kt)`), color = "green") + 
+geom_line(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`CO2 emissions (kt)`), color = "blue") + 
+ggtitle("CO2 emissions (metrics tons per capita)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = c(0, 1),legend.justification = c(0, 1)) + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```
+
+```{r}
+ggplot() + 
+geom_point(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`GDP per capita (current US$)`), color = "yellow") + 
+geom_point(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`GDP per capita (current US$)`), color = "red") + 
+geom_point(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`GDP per capita (current US$)`), color = "orange") +
+geom_point(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`GDP per capita (current US$)`), color = "green") + 
+geom_point(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`GDP per capita (current US$)`), color = "blue") + 
+geom_line(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`GDP per capita (current US$)`), color = "yellow") + 
+geom_line(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`GDP per capita (current US$)`), color = "red") + 
+geom_line(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`GDP per capita (current US$)`), color = "orange") + 
+geom_line(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`GDP per capita (current US$)`), color = "green") + 
+geom_line(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`GDP per capita (current US$)`), color = "blue") + 
+ggtitle("GDP per capita (current US$)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = c(0, 1),legend.justification = c(0, 1)) + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```
+
+```{r}
+ggplot() + 
+geom_point(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Death rate, crude (per 1,000 people)`), color = "yellow") + 
+geom_point(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`Death rate, crude (per 1,000 people)`), color = "red") + 
+geom_point(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`Death rate, crude (per 1,000 people)`), color = "orange") +
+geom_point(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`Death rate, crude (per 1,000 people)`), color = "green") + 
+geom_point(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Death rate, crude (per 1,000 people)`), color = "blue") + 
+geom_line(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Death rate, crude (per 1,000 people)`), color = "yellow") + 
+geom_line(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`Death rate, crude (per 1,000 people)`), color = "red") + 
+geom_line(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`Death rate, crude (per 1,000 people)`), color = "orange") + 
+geom_line(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`Death rate, crude (per 1,000 people)`), color = "green") + 
+geom_line(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Death rate, crude (per 1,000 people)`), color = "blue") + 
+ggtitle("CO2 emissions (metrics tons per capita)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = c(0, 1),legend.justification = c(0, 1)) + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```
+
+```{r}
+ggplot() + 
+geom_point(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Death rate, crude (per 1,000 people)`), color = "yellow") + 
+geom_point(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`Death rate, crude (per 1,000 people)`), color = "red") + 
+geom_point(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`Death rate, crude (per 1,000 people)`), color = "orange") +
+geom_point(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`Death rate, crude (per 1,000 people)`), color = "green") + 
+geom_point(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Death rate, crude (per 1,000 people)`), color = "blue") + 
+geom_line(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Death rate, crude (per 1,000 people)`), color = "yellow") + 
+geom_line(data = Mortality_China, aes(x = Mortality_China$Year, y = Mortality_China$`Death rate, crude (per 1,000 people)`), color = "red") + 
+geom_line(data = Mortality_India, aes(x = Mortality_India$Year, y = Mortality_India$`Death rate, crude (per 1,000 people)`), color = "orange") + 
+geom_line(data = Mortality_France, aes(x = Mortality_France$Year, y = Mortality_France$`Death rate, crude (per 1,000 people)`), color = "green") + 
+geom_line(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Death rate, crude (per 1,000 people)`), color = "blue") + 
+ggtitle("CO2 emissions (metrics tons per capita)") + xlab('YEAR') + ylab('VALUE') + theme(legend.position = c(0, 1),legend.justification = c(0, 1)) + scale_fill_discrete(name = "Country", labels = c("ESP", "CHN", "IND", "FRA", "USA"))
+```

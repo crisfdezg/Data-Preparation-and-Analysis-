@@ -1,0 +1,1563 @@
+Load libraries
+```{r}
+library(readr)
+library(sqldf)
+library(dplyr)
+library(plyr)
+library(ggplot2)
+library(stats)
+library(imputeTS)
+library(tseries)
+library(sqldf)
+library(forecast)
+library(FitAR)
+library(TTR)
+library(Metrics)
+```
+
+```{r}
+Indicators <- read.csv("/Users/cristinafernandezgarcia/Desktop/Data/Indicators.csv", header = T)
+```
+
+# SPAIN
+```{r}
+Indicators_Spain <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "ESP" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+Mortality_ESP <- data.frame(year)
+indicatornames <- subset(sqldf('select distinct IndicatorName from Indicators_Spain'))
+```
+
+```{r}
+#Mortality rate, adult, female (per 1,000 male adults)
+mort_fem <- sqldf('select Year, Value from Indicators_Spain where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_ESP$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) ESP")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_Spain where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_ESP$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) ESP")
+```
+
+# Grafico de comparacion de mortalities
+```{r}
+ggplot() + 
+geom_point(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_line(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_point(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+geom_line(data = Mortality_ESP, aes(x = Mortality_ESP$Year, y = Mortality_ESP$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+ggtitle("Mortality rate, adult (per 1,000 people) SPAIN") + xlab('YEAR') + ylab('VALUE')
+```
+
+
+#FEMALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_ESP$`Mortality rate, adult, female (per 1,000 female adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_ESP$`Mortality rate, adult, female (per 1,000 female adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, female (per 1,000 female adults) SPAIN", col="blue")
+diffemale <- ndiffs(Mortality_ESP$`Mortality rate, adult, female (per 1,000 female adults)`)  # number of differences need to make it stationary
+stationary_mort_female <- diff(Mortality_ESP$`Mortality rate, adult, female (per 1,000 female adults)`, differences = diffemale)
+plot(stationary_mort_female, type="l", main="Differenced and Stationary 'Mortality rate, adult, female' SPAIN")
+
+#Dividimos en train y test
+stationary_mort_female.train <- stationary_mort_female[1:49]
+stationary_mort_female.test <- stationary_mort_female[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_female <- ar(stationary_mort_female.train)
+AR_predict_female <- predict(AR_fit_female, n.ahead = 5)$pred
+AR_future_female <- forecast(AR_fit_female, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_female, col="purple", main = "Prediction from 2011-2015 Female Adult Mortality in Spain")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_female, xlab="Years", main="AutoRegressive Model for Adult Female Mortality SPAIN", col="pink")
+lines(ts(stationary_mort_female), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(AR_future_female$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_female <- ma(stationary_mort_female.train, order=1, centre = TRUE)
+MA_predict_female <- predict(MA_fit_female, h = 5)$pred
+MA_future_female <- forecast(MA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_female, xlab="Years", main="MovingAverage Model for Adult Female Mortality SPAIN")
+lines(ts(stationary_mort_female), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(MA_future_female$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_female <- SMA(stationary_mort_female.train, n=4)
+SMA_predict_female <- predict(SMA_fit_female, h = 5)$pred
+SMA_future_female <- forecast(SMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_female, xlab="Years", main="SimpleMovingAverage Model for Adult Female Mortality SPAIN")
+lines(ts(stationary_mort_female), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(SMA_future_female$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_female <- WMA(stationary_mort_female.train, n=2, 1:2)
+WMA_predict_female <- predict(WMA_fit_female, h = 5)$pred
+WMA_future_female <- forecast(WMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_female, xlab="Years", main="WightedMovingAverage Model for Adult Female Mortality SPAIN")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_female <- auto.arima(stationary_mort_female.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_female <- forecast(ARIMA_fit_female, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_female, xlab="Years", main="AutoArima Model for Adult Female Mortality SPAIN")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+
+#MALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_ESP$`Mortality rate, adult, male (per 1,000 male adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_ESP$`Mortality rate, adult, male (per 1,000 male adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, male (per 1,000 male adults) SPAIN", col="blue")
+difmale <- ndiffs(Mortality_ESP$`Mortality rate, adult, male (per 1,000 male adults)`)  # number of differences need to make it stationary
+stationary_mort_male <- diff(Mortality_ESP$`Mortality rate, adult, male (per 1,000 male adults)`, differences = difmale)
+plot(stationary_mort_male, type="l", main="Differenced and Stationary 'Mortality rate, adult, male' SPAIN")
+
+#Dividimos en train y test
+stationary_mort_male.train <- stationary_mort_male[1:49]
+stationary_mort_male.test <- stationary_mort_male[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_male <- ar(stationary_mort_male.train)
+AR_predict_male <- predict(AR_fit_male, n.ahead = 5)$pred
+AR_future_male <- forecast(AR_fit_male, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_male, col="purple", main = "Prediction from 2011-2015 Male Adult Mortality in Spain")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_male, xlab="Years", main="AutoRegressive Model for Adult Male Mortality SPAIN", col="pink")
+lines(ts(stationary_mort_male), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(AR_future_male$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_male <- ma(stationary_mort_male.train, order=1, centre = TRUE)
+MA_predict_male <- predict(MA_fit_male, h = 5)$pred
+MA_future_male <- forecast(MA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_male, xlab="Years", main="MovingAverage Model for Adult Male Mortality SPAIN")
+lines(ts(stationary_mort_male), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(MA_future_male$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_male <- SMA(stationary_mort_male.train, n=4)
+SMA_predict_male <- predict(SMA_fit_male, h = 5)$pred
+SMA_future_male <- forecast(SMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_male, xlab="Years", main="SimpleMovingAverage Model for Adult Male Mortality SPAIN")
+lines(ts(stationary_mort_male), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(SMA_future_male$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_male <- WMA(stationary_mort_male.train, n=2, 1:2)
+WMA_predict_male <- predict(WMA_fit_male, h = 5)$pred
+WMA_future_male <- forecast(WMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_male, xlab="Years", main="WightedMovingAverage Model for Adult Male Mortality SPAIN")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_male <- auto.arima(stationary_mort_male.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_male <- forecast(ARIMA_fit_male, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_male, xlab="Years", main="AutoArima Model for Adult Male Mortality SPAIN")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+
+
+# USA
+```{r}
+Indicators_USA <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "USA" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+Mortality_USA <- data.frame(year)
+```
+
+```{r}
+#Mortality rate, adult, female (per 1,000 male adults)
+mort_fem <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_USA$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) USA")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_USA$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) USA")
+```
+
+# Grafico de comparacion de mortalities
+```{r}
+ggplot() + 
+geom_point(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_line(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_point(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+geom_line(data = Mortality_USA, aes(x = Mortality_USA$Year, y = Mortality_USA$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+ggtitle("Mortality rate, adult (per 1,000 people) USA") + xlab('YEAR') + ylab('VALUE')
+```
+
+
+#FEMALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_USA$`Mortality rate, adult, female (per 1,000 female adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_USA$`Mortality rate, adult, female (per 1,000 female adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, female (per 1,000 female adults) USA", col="blue")
+diffemale <- ndiffs(Mortality_USA$`Mortality rate, adult, female (per 1,000 female adults)`)  # number of differences need to make it stationary
+stationary_mort_female <- diff(Mortality_USA$`Mortality rate, adult, female (per 1,000 female adults)`, differences = diffemale)
+plot(stationary_mort_female, type="l", main="Differenced and Stationary 'Mortality rate, adult, female' USA")
+
+#Dividimos en train y test
+stationary_mort_female.train <- stationary_mort_female[1:49]
+stationary_mort_female.test <- stationary_mort_female[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_female <- ar(stationary_mort_female.train)
+AR_predict_female <- predict(AR_fit_female, n.ahead = 5)$pred
+AR_future_female <- forecast(AR_fit_female, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_female, col="purple", main = "Prediction from 2011-2015 Female Adult Mortality in USA")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_female, xlab="Years", main="AutoRegressive Model for Adult Female Mortality USA", col="pink")
+lines(ts(stationary_mort_female), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(AR_future_female$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_female <- ma(stationary_mort_female.train, order=1, centre = TRUE)
+MA_predict_female <- predict(MA_fit_female, h = 5)$pred
+MA_future_female <- forecast(MA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_female, xlab="Years", main="MovingAverage Model for Adult Female Mortality USA")
+lines(ts(stationary_mort_female), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(MA_future_female$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_female <- SMA(stationary_mort_female.train, n=4)
+SMA_predict_female <- predict(SMA_fit_female, h = 5)$pred
+SMA_future_female <- forecast(SMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_female, xlab="Years", main="SimpleMovingAverage Model for Adult Female Mortality USA")
+lines(ts(stationary_mort_female), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(SMA_future_female$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_female <- WMA(stationary_mort_female.train, n=2, 1:2)
+WMA_predict_female <- predict(WMA_fit_female, h = 5)$pred
+WMA_future_female <- forecast(WMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_female, xlab="Years", main="WightedMovingAverage Model for Adult Female Mortality USA")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_female <- auto.arima(stationary_mort_female.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_female <- forecast(ARIMA_fit_female, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_female, xlab="Years", main="AutoArima Model for Adult Female Mortality USA")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+
+#MALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_USA$`Mortality rate, adult, male (per 1,000 male adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_USA$`Mortality rate, adult, male (per 1,000 male adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, male (per 1,000 male adults) USA", col="blue")
+difmale <- ndiffs(Mortality_USA$`Mortality rate, adult, male (per 1,000 male adults)`)  # number of differences need to make it stationary
+stationary_mort_male <- diff(Mortality_USA$`Mortality rate, adult, male (per 1,000 male adults)`, differences = difmale)
+plot(stationary_mort_male, type="l", main="Differenced and Stationary 'Mortality rate, adult, male' USA")
+
+#Dividimos en train y test
+stationary_mort_male.train <- stationary_mort_male[1:49]
+stationary_mort_male.test <- stationary_mort_male[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_male <- ar(stationary_mort_male.train)
+AR_predict_male <- predict(AR_fit_male, n.ahead = 5)$pred
+AR_future_male <- forecast(AR_fit_male, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_male, col="purple", main = "Prediction from 2011-2015 Male Adult Mortality in USA")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_male, xlab="Years", main="AutoRegressive Model for Adult Male Mortality USA", col="pink")
+lines(ts(stationary_mort_male), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(AR_future_male$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_male <- ma(stationary_mort_male.train, order=1, centre = TRUE)
+MA_predict_male <- predict(MA_fit_male, h = 5)$pred
+MA_future_male <- forecast(MA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_male, xlab="Years", main="MovingAverage Model for Adult Male Mortality USA")
+lines(ts(stationary_mort_male), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(MA_future_male$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_male <- SMA(stationary_mort_male.train, n=4)
+SMA_predict_male <- predict(SMA_fit_male, h = 5)$pred
+SMA_future_male <- forecast(SMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_male, xlab="Years", main="SimpleMovingAverage Model for Adult Male Mortality USA")
+lines(ts(stationary_mort_male), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(SMA_future_male$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_male <- WMA(stationary_mort_male.train, n=2, 1:2)
+WMA_predict_male <- predict(WMA_fit_male, h = 5)$pred
+WMA_future_male <- forecast(WMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_male, xlab="Years", main="WightedMovingAverage Model for Adult Male Mortality USA")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_male <- auto.arima(stationary_mort_male.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_male <- forecast(ARIMA_fit_male, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_male, xlab="Years", main="AutoArima Model for Adult Male Mortality USA")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+
+# INDIA
+```{r}
+Indicators_IND <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "IND" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+
+Mortality_IND <- data.frame(year)
+```
+
+```{r}
+#Mortality rate, adult, female (per 1,000 male adults)
+mort_fem <- sqldf('select Year, Value from Indicators_IND where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_IND$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) IND")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_IND where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_IND$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) IND")
+```
+
+# Grafico de comparacion de mortalities
+```{r}
+ggplot() + 
+geom_point(data = Mortality_IND, aes(x = Mortality_IND$Year, y = Mortality_IND$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_line(data = Mortality_IND, aes(x = Mortality_IND$Year, y = Mortality_IND$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_point(data = Mortality_IND, aes(x = Mortality_IND$Year, y = Mortality_IND$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+geom_line(data = Mortality_IND, aes(x = Mortality_IND$Year, y = Mortality_IND$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+ggtitle("Mortality rate, adult (per 1,000 people) INDIA") + xlab('YEAR') + ylab('VALUE')
+```
+
+
+#FEMALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_IND$`Mortality rate, adult, female (per 1,000 female adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_IND$`Mortality rate, adult, female (per 1,000 female adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, female (per 1,000 female adults) INDIA", col="blue")
+diffemale <- ndiffs(Mortality_IND$`Mortality rate, adult, female (per 1,000 female adults)`)  # number of differences need to make it stationary
+stationary_mort_female <- diff(Mortality_IND$`Mortality rate, adult, female (per 1,000 female adults)`, differences = diffemale)
+plot(stationary_mort_female, type="l", main="Differenced and Stationary 'Mortality rate, adult, female' INDIA")
+
+#Dividimos en train y test
+stationary_mort_female.train <- stationary_mort_female[1:49]
+stationary_mort_female.test <- stationary_mort_female[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_female <- ar(stationary_mort_female.train)
+AR_predict_female <- predict(AR_fit_female, n.ahead = 5)$pred
+AR_future_female <- forecast(AR_fit_female, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_female, col="purple", main = "Prediction from 2011-2015 Female Adult Mortality in India")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_female, xlab="Years", main="AutoRegressive Model for Adult Female Mortality INDIA", col="pink")
+lines(ts(stationary_mort_female), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(AR_future_female$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_female <- ma(stationary_mort_female.train, order=1, centre = TRUE)
+MA_predict_female <- predict(MA_fit_female, h = 5)$pred
+MA_future_female <- forecast(MA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_female, xlab="Years", main="MovingAverage Model for Adult Female Mortality INDIA")
+lines(ts(stationary_mort_female), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(MA_future_female$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_female <- SMA(stationary_mort_female.train, n=4)
+SMA_predict_female <- predict(SMA_fit_female, h = 5)$pred
+SMA_future_female <- forecast(SMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_female, xlab="Years", main="SimpleMovingAverage Model for Adult Female Mortality INDIA")
+lines(ts(stationary_mort_female), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(SMA_future_female$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_female <- WMA(stationary_mort_female.train, n=2, 1:2)
+WMA_predict_female <- predict(WMA_fit_female, h = 5)$pred
+WMA_future_female <- forecast(WMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_female, xlab="Years", main="WightedMovingAverage Model for Adult Female Mortality INDIA")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_female <- auto.arima(stationary_mort_female.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_female <- forecast(ARIMA_fit_female, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_female, xlab="Years", main="AutoArima Model for Adult Female Mortality INDIA")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+
+#MALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_IND$`Mortality rate, adult, male (per 1,000 male adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_IND$`Mortality rate, adult, male (per 1,000 male adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, male (per 1,000 male adults) INDIA", col="blue")
+stationary_mort_male <- (Mortality_IND$`Mortality rate, adult, male (per 1,000 male adults)`)
+
+#Dividimos en train y test
+stationary_mort_male.train <- stationary_mort_male[1:49]
+stationary_mort_male.test <- stationary_mort_male[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_male <- ar(stationary_mort_male.train)
+AR_predict_male <- predict(AR_fit_male, n.ahead = 5)$pred
+AR_future_male <- forecast(AR_fit_male, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_male, col="purple", main = "Prediction from 2011-2015 Male Adult Mortality in India")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_male, xlab="Years", main="AutoRegressive Model for Adult Male Mortality INDIA", col="pink")
+lines(ts(stationary_mort_male), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(AR_future_male$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_male <- ma(stationary_mort_male.train, order=1, centre = TRUE)
+MA_predict_male <- predict(MA_fit_male, h = 5)$pred
+MA_future_male <- forecast(MA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_male, xlab="Years", main="MovingAverage Model for Adult Male Mortality INDIA")
+lines(ts(stationary_mort_male), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(MA_future_male$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_male <- SMA(stationary_mort_male.train, n=4)
+SMA_predict_male <- predict(SMA_fit_male, h = 5)$pred
+SMA_future_male <- forecast(SMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_male, xlab="Years", main="SimpleMovingAverage Model for Adult Male Mortality INDIA")
+lines(ts(stationary_mort_male), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(SMA_future_male$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_male <- WMA(stationary_mort_male.train, n=2, 1:2)
+WMA_predict_male <- predict(WMA_fit_male, h = 5)$pred
+WMA_future_male <- forecast(WMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_male, xlab="Years", main="WightedMovingAverage Model for Adult Male Mortality INDIA")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_male <- auto.arima(stationary_mort_male.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_male <- forecast(ARIMA_fit_male, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_male, xlab="Years", main="AutoArima Model for Adult Male Mortality INDIA")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(ARIMA_future_male$mean))
+```
+
+
+# CHINA
+```{r}
+Indicators_China <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "CHN" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+
+Mortality_CHN <- data.frame(year)
+```
+
+```{r}
+#Mortality rate, adult, female (per 1,000 male adults)
+mort_fem <- sqldf('select Year, Value from Indicators_China where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_CHN$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) CHN")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_China where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_CHN$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) CHN")
+```
+
+# Grafico de comparacion de mortalities
+```{r}
+ggplot() + 
+geom_point(data = Mortality_CHN, aes(x = Mortality_CHN$Year, y = Mortality_CHN$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_line(data = Mortality_CHN, aes(x = Mortality_CHN$Year, y = Mortality_CHN$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_point(data = Mortality_CHN, aes(x = Mortality_CHN$Year, y = Mortality_CHN$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+geom_line(data = Mortality_CHN, aes(x = Mortality_CHN$Year, y = Mortality_CHN$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+ggtitle("Mortality rate, adult (per 1,000 people) CHINA") + xlab('YEAR') + ylab('VALUE')
+```
+
+
+#FEMALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_CHN$`Mortality rate, adult, female (per 1,000 female adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_CHN$`Mortality rate, adult, female (per 1,000 female adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, female (per 1,000 female adults) CHINA", col="blue")
+stationary_mort_female <- Mortality_CHN$`Mortality rate, adult, female (per 1,000 female adults)`
+
+#Dividimos en train y test
+stationary_mort_female.train <- stationary_mort_female[1:49]
+stationary_mort_female.test <- stationary_mort_female[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_female <- ar(stationary_mort_female.train)
+AR_predict_female <- predict(AR_fit_female, n.ahead = 5)$pred
+AR_future_female <- forecast(AR_fit_female, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_female, col="purple", main = "Prediction from 2011-2015 Female Adult Mortality in China")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_female, xlab="Years", main="AutoRegressive Model for Adult Female Mortality CHINA", col="pink")
+lines(ts(stationary_mort_female), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(AR_future_female$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_female <- ma(stationary_mort_female.train, order=1, centre = TRUE)
+MA_predict_female <- predict(MA_fit_female, h = 5)$pred
+MA_future_female <- forecast(MA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_female, xlab="Years", main="MovingAverage Model for Adult Female Mortality CHINA")
+lines(ts(stationary_mort_female), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(MA_future_female$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_female <- SMA(stationary_mort_female.train, n=4)
+SMA_predict_female <- predict(SMA_fit_female, h = 5)$pred
+SMA_future_female <- forecast(SMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_female, xlab="Years", main="SimpleMovingAverage Model for Adult Female Mortality CHINA")
+lines(ts(stationary_mort_female), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(SMA_future_female$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_female <- WMA(stationary_mort_female.train, n=2, 1:2)
+WMA_predict_female <- predict(WMA_fit_female, h = 5)$pred
+WMA_future_female <- forecast(WMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_female, xlab="Years", main="WightedMovingAverage Model for Adult Female Mortality CHINA")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_female <- auto.arima(stationary_mort_female.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_female <- forecast(ARIMA_fit_female, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_female, xlab="Years", main="AutoArima Model for Adult Female Mortality CHINA")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+
+#MALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_CHN$`Mortality rate, adult, male (per 1,000 male adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_CHN$`Mortality rate, adult, male (per 1,000 male adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, male (per 1,000 male adults) CHINA", col="blue")
+stationary_mort_male <- Mortality_CHN$`Mortality rate, adult, male (per 1,000 male adults)`
+
+#Dividimos en train y test
+stationary_mort_male.train <- stationary_mort_male[1:49]
+stationary_mort_male.test <- stationary_mort_male[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_male <- ar(stationary_mort_male.train)
+AR_predict_male <- predict(AR_fit_male, n.ahead = 5)$pred
+AR_future_male <- forecast(AR_fit_male, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_male, col="purple", main = "Prediction from 2011-2015 Male Adult Mortality in China")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_male, xlab="Years", main="AutoRegressive Model for Adult Male Mortality CHINA", col="pink")
+lines(ts(stationary_mort_male), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(AR_future_male$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_male <- ma(stationary_mort_male.train, order=1, centre = TRUE)
+MA_predict_male <- predict(MA_fit_male, h = 5)$pred
+MA_future_male <- forecast(MA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_male, xlab="Years", main="MovingAverage Model for Adult Male Mortality CHINA")
+lines(ts(stationary_mort_male), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(MA_future_male$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_male <- SMA(stationary_mort_male.train, n=4)
+SMA_predict_male <- predict(SMA_fit_male, h = 5)$pred
+SMA_future_male <- forecast(SMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_male, xlab="Years", main="SimpleMovingAverage Model for Adult Male Mortality CHINA")
+lines(ts(stationary_mort_male), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(SMA_future_male$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_male <- WMA(stationary_mort_male.train, n=2, 1:2)
+WMA_predict_male <- predict(WMA_fit_male, h = 5)$pred
+WMA_future_male <- forecast(WMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_male, xlab="Years", main="WightedMovingAverage Model for Adult Male Mortality CHINA")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_male <- auto.arima(stationary_mort_male.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_male <- forecast(ARIMA_fit_male, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_male, xlab="Years", main="AutoArima Model for Adult Male Mortality CHINA")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+
+# FRANCE
+```{r}
+Indicators_France <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "FRA" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+Mortality_FRA <- data.frame(year)
+```
+
+```{r}
+#Mortality rate, adult, female (per 1,000 male adults)
+mort_fem <- sqldf('select Year, Value from Indicators_France where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_FRA$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) FRA")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_USA where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_FRA$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) FRA")
+```
+
+# Grafico de comparacion de mortalities
+```{r}
+ggplot() + 
+geom_point(data = Mortality_FRA, aes(x = Mortality_FRA$Year, y = Mortality_FRA$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_line(data = Mortality_FRA, aes(x = Mortality_FRA$Year, y = Mortality_FRA$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_point(data = Mortality_FRA, aes(x = Mortality_FRA$Year, y = Mortality_FRA$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+geom_line(data = Mortality_FRA, aes(x = Mortality_FRA$Year, y = Mortality_FRA$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+ggtitle("Mortality rate, adult (per 1,000 people) FRANCE") + xlab('YEAR') + ylab('VALUE')
+```
+
+
+#FEMALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_FRA$`Mortality rate, adult, female (per 1,000 female adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_FRA$`Mortality rate, adult, female (per 1,000 female adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, female (per 1,000 female adults) FRANCE", col="blue")
+diffemale <- ndiffs(Mortality_FRA$`Mortality rate, adult, female (per 1,000 female adults)`)  # number of differences need to make it stationary
+stationary_mort_female <- diff(Mortality_FRA$`Mortality rate, adult, female (per 1,000 female adults)`, differences = diffemale)
+plot(stationary_mort_female, type="l", main="Differenced and Stationary 'Mortality rate, adult, female' FRANCE")
+
+#Dividimos en train y test
+stationary_mort_female.train <- stationary_mort_female[1:49]
+stationary_mort_female.test <- stationary_mort_female[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_female <- ar(stationary_mort_female.train)
+AR_predict_female <- predict(AR_fit_female, n.ahead = 5)$pred
+AR_future_female <- forecast(AR_fit_female, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_female, col="purple", main = "Prediction from 2011-2015 Female Adult Mortality in France")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_female, xlab="Years", main="AutoRegressive Model for Adult Female Mortality FRANCE", col="pink")
+lines(ts(stationary_mort_female), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(AR_future_female$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_female <- ma(stationary_mort_female.train, order=1, centre = TRUE)
+MA_predict_female <- predict(MA_fit_female, h = 5)$pred
+MA_future_female <- forecast(MA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_female, xlab="Years", main="MovingAverage Model for Adult Female Mortality FRANCE")
+lines(ts(stationary_mort_female), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(MA_future_female$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_female <- SMA(stationary_mort_female.train, n=4)
+SMA_predict_female <- predict(SMA_fit_female, h = 5)$pred
+SMA_future_female <- forecast(SMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_female, xlab="Years", main="SimpleMovingAverage Model for Adult Female Mortality FRANCE")
+lines(ts(stationary_mort_female), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(SMA_future_female$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_female <- WMA(stationary_mort_female.train, n=2, 1:2)
+WMA_predict_female <- predict(WMA_fit_female, h = 5)$pred
+WMA_future_female <- forecast(WMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_female, xlab="Years", main="WightedMovingAverage Model for Adult Female Mortality FRANCE")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_female <- auto.arima(stationary_mort_female.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_female <- forecast(ARIMA_fit_female, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_female, xlab="Years", main="AutoArima Model for Adult Female Mortality FRANCE")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+
+#MALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_FRA$`Mortality rate, adult, male (per 1,000 male adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_FRA$`Mortality rate, adult, male (per 1,000 male adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, male (per 1,000 male adults) FRANCE", col="blue")
+difmale <- ndiffs(Mortality_FRA$`Mortality rate, adult, male (per 1,000 male adults)`)  # number of differences need to make it stationary
+stationary_mort_male <- diff(Mortality_FRA$`Mortality rate, adult, male (per 1,000 male adults)`, differences = difmale)
+plot(stationary_mort_male, type="l", main="Differenced and Stationary 'Mortality rate, adult, male' FRANCE")
+
+#Dividimos en train y test
+stationary_mort_male.train <- stationary_mort_male[1:49]
+stationary_mort_male.test <- stationary_mort_male[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_male <- ar(stationary_mort_male.train)
+AR_predict_male <- predict(AR_fit_male, n.ahead = 5)$pred
+AR_future_male <- forecast(AR_fit_male, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_male, col="purple", main = "Prediction from 2011-2015 Male Adult Mortality in France")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_male, xlab="Years", main="AutoRegressive Model for Adult Male Mortality FRANCE", col="pink")
+lines(ts(stationary_mort_male), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(AR_future_male$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_male <- ma(stationary_mort_male.train, order=1, centre = TRUE)
+MA_predict_male <- predict(MA_fit_male, h = 5)$pred
+MA_future_male <- forecast(MA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_male, xlab="Years", main="MovingAverage Model for Adult Male Mortality FRANCE")
+lines(ts(stationary_mort_male), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(MA_future_male$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_male <- SMA(stationary_mort_male.train, n=4)
+SMA_predict_male <- predict(SMA_fit_male, h = 5)$pred
+SMA_future_male <- forecast(SMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_male, xlab="Years", main="SimpleMovingAverage Model for Adult Male Mortality FRANCE")
+lines(ts(stationary_mort_male), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(SMA_future_male$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_male <- WMA(stationary_mort_male.train, n=2, 1:2)
+WMA_predict_male <- predict(WMA_fit_male, h = 5)$pred
+WMA_future_male <- forecast(WMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_male, xlab="Years", main="WightedMovingAverage Model for Adult Male Mortality FRANCE")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_male <- auto.arima(stationary_mort_male.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_male <- forecast(ARIMA_fit_male, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_male, xlab="Years", main="AutoArima Model for Adult Male Mortality FRANCE")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+
+# WORLD
+```{r}
+Indicators_World <- subset(sqldf('SELECT * FROM Indicators WHERE IndicatorCode IN ("AG.LND.AGRI.ZS","EN.ATM.CO2E.KT","EN.ATM.CO2E.GF.KT","EN.ATM.CO2E.LF.KT","EN.ATM.CO2E.SF.KT","AG.LND.FRST.K2","SP.DYN.CDRT.IN","EN.ATM.METH.KT.CE","SH.DTH.INJR.ZS","SP.DYN.AMRT.FE","SP.DYN.AMRT.MA","NY.GDP.PCAP.CD")  AND CountryCode = "WLD" ORDER BY IndicatorName, Year ASC'))
+
+year <- sqldf('select distinct Year from Indicators')
+Mortality_WLD <- data.frame(year)
+```
+
+```{r}
+#Mortality rate, adult, female (per 1,000 male adults)
+mort_fem <- sqldf('select Year, Value from Indicators_World where IndicatorName == "Mortality rate, adult, female (per 1,000 female adults)"')
+mort_fem_na <- rep(NA, 56)
+i <- 1
+for (year in mort_fem$Year){
+ mort_fem_na[(year-1960+1)] <- mort_fem$Value[i]
+  i = i + 1
+}
+mort_fem_ts <- ts(data = mort_fem_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_fem_ts)){
+    mort_fem_kalman <- na.kalman(mort_fem_ts)
+} else{
+    mort_fem_kalman <- mort_fem_ts
+}
+Mortality_WLD$'Mortality rate, adult, female (per 1,000 female adults)' <- mort_fem_kalman
+plotNA.imputations(mort_fem_ts, mort_fem_kalman, legend = TRUE, main = "Mortality rate, adult, female (per 1,000 female adults) WLD")
+
+
+#Mortality rate, adult, male (per 1,000 male adults)
+mort_male <- sqldf('select Year, Value from Indicators_World where IndicatorName == "Mortality rate, adult, male (per 1,000 male adults)"')
+mort_male_na <- rep(NA, 56)
+i <- 1
+for (year in mort_male$Year){
+ mort_male_na[(year-1960+1)] <- mort_male$Value[i]
+  i = i + 1
+}
+mort_male_ts <- ts(data = mort_male_na, start = 1960, end = 2015, frequency = 1)
+if(anyNA(mort_male_ts)){
+    mort_male_kalman <- na.kalman(mort_male_ts)
+} else{
+    mort_male_kalman <- mort_male_ts
+}
+Mortality_WLD$'Mortality rate, adult, male (per 1,000 male adults)' <- mort_male_kalman
+plotNA.imputations(mort_male_ts, mort_male_kalman, legend = TRUE, main = "Mortality rate, adult, male (per 1,000 male adults) WLD")
+```
+
+# Grafico de comparacion de mortalities
+```{r}
+ggplot() + 
+geom_point(data = Mortality_WLD, aes(x = Mortality_WLD$Year, y = Mortality_WLD$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_line(data = Mortality_WLD, aes(x = Mortality_WLD$Year, y = Mortality_WLD$`Mortality rate, adult, female (per 1,000 female adults)`), color = "orange") + 
+geom_point(data = Mortality_WLD, aes(x = Mortality_WLD$Year, y = Mortality_WLD$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+geom_line(data = Mortality_WLD, aes(x = Mortality_WLD$Year, y = Mortality_WLD$`Mortality rate, adult, male (per 1,000 male adults)`), color = "blue") + 
+ggtitle("Mortality rate, adult (per 1,000 people) WORLD") + xlab('YEAR') + ylab('VALUE')
+```
+
+
+#FEMALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_WLD$`Mortality rate, adult, female (per 1,000 female adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_WLD$`Mortality rate, adult, female (per 1,000 female adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, female (per 1,000 female adults) WORLD", col="blue")
+diffemale <- ndiffs(Mortality_WLD$`Mortality rate, adult, female (per 1,000 female adults)`)  # number of differences need to make it stationary
+stationary_mort_female <- diff(Mortality_WLD$`Mortality rate, adult, female (per 1,000 female adults)`, differences = diffemale)
+plot(stationary_mort_female, type="l", main="Differenced and Stationary 'Mortality rate, adult, female' WORLD")
+
+#Dividimos en train y test
+stationary_mort_female.train <- stationary_mort_female[1:49]
+stationary_mort_female.test <- stationary_mort_female[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_female <- ar(stationary_mort_female.train)
+AR_predict_female <- predict(AR_fit_female, n.ahead = 5)$pred
+AR_future_female <- forecast(AR_fit_female, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_female, col="purple", main = "Prediction from 2011-2015 Female Adult Mortality in World")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_female, xlab="Years", main="AutoRegressive Model for Adult Female Mortality WORLD", col="pink")
+lines(ts(stationary_mort_female), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(AR_future_female$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_female <- ma(stationary_mort_female.train, order=1, centre = TRUE)
+MA_predict_female <- predict(MA_fit_female, h = 5)$pred
+MA_future_female <- forecast(MA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_female, xlab="Years", main="MovingAverage Model for Adult Female Mortality WORLD")
+lines(ts(stationary_mort_female), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(MA_future_female$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_female <- SMA(stationary_mort_female.train, n=4)
+SMA_predict_female <- predict(SMA_fit_female, h = 5)$pred
+SMA_future_female <- forecast(SMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_female, xlab="Years", main="SimpleMovingAverage Model for Adult Female Mortality WORLD")
+lines(ts(stationary_mort_female), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(SMA_future_female$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_female <- WMA(stationary_mort_female.train, n=2, 1:2)
+WMA_predict_female <- predict(WMA_fit_female, h = 5)$pred
+WMA_future_female <- forecast(WMA_fit_female, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_female, xlab="Years", main="WightedMovingAverage Model for Adult Female Mortality WORLD")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_female <- auto.arima(stationary_mort_female.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_female <- forecast(ARIMA_fit_female, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_female, xlab="Years", main="AutoArima Model for Adult Female Mortality WORLD")
+lines(ts(stationary_mort_female), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_female.test), as.numeric(WMA_future_female$mean))
+```
+
+
+#MALE PREDICTION 
+
+# Voy a coger las dos responses de mortality primero female y luego male, voy a comprobar si son o no stationary con el adf.test y si no lo son hacerlas stationary
+```{r}
+adf.test(Mortality_WLD$`Mortality rate, adult, male (per 1,000 male adults)`) #p-value < 0.05 indicates the TS is stationary
+
+plot(Mortality_WLD$`Mortality rate, adult, male (per 1,000 male adults)`, xlab="Years", ylab="Value", main="Mortality rate, adult, male (per 1,000 male adults) WORLD", col="blue")
+stationary_mort_male <- Mortality_WLD$`Mortality rate, adult, male (per 1,000 male adults)`
+
+#Dividimos en train y test
+stationary_mort_male.train <- stationary_mort_male[1:49]
+stationary_mort_male.test <- stationary_mort_male[50:54]
+```
+
+#Fit an autoregressive time series model to the data
+```{r}
+AR_fit_male <- ar(stationary_mort_male.train)
+AR_predict_male <- predict(AR_fit_male, n.ahead = 5)$pred
+AR_future_male <- forecast(AR_fit_male, h=5)
+
+# These are the values predicted
+ts.plot(AR_predict_male, col="purple", main = "Prediction from 2011-2015 Male Adult Mortality in World")
+
+# These is the prediction of the last 5 years using AR
+plot(AR_future_male, xlab="Years", main="AutoRegressive Model for Adult Male Mortality WORLD", col="pink")
+lines(ts(stationary_mort_male), col="pink")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(AR_future_male$mean))
+```
+
+
+#Fit moving average time series model to the data
+```{r}
+# I try to fit an usual moving average as well as a simple moving average and a weighted moving average, and all of them give me a null prediction
+
+# MOVING AVERAGE
+MA_fit_male <- ma(stationary_mort_male.train, order=1, centre = TRUE)
+MA_predict_male <- predict(MA_fit_male, h = 5)$pred
+MA_future_male <- forecast(MA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(MA_predict_female)
+
+# These is the prediction of the last 5 years using AR
+plot(MA_future_male, xlab="Years", main="MovingAverage Model for Adult Male Mortality WORLD")
+lines(ts(stationary_mort_male), col="red")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(MA_future_male$mean))
+
+
+# SIMPLE MOVING AVERAGE
+SMA_fit_male <- SMA(stationary_mort_male.train, n=4)
+SMA_predict_male <- predict(SMA_fit_male, h = 5)$pred
+SMA_future_male <- forecast(SMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(SMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(SMA_future_male, xlab="Years", main="SimpleMovingAverage Model for Adult Male Mortality WORLD")
+lines(ts(stationary_mort_male), col="yellow")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(SMA_future_male$mean))
+
+
+# WEIGHTED MOVING AVERAGE
+WMA_fit_male <- WMA(stationary_mort_male.train, n=2, 1:2)
+WMA_predict_male <- predict(WMA_fit_male, h = 5)$pred
+WMA_future_male <- forecast(WMA_fit_male, h=5)
+
+# These are the values predicted (no funciona da null la prediction)
+# ts.plot(WMA_predict_male)
+
+# These is the prediction of the last 5 years using AR
+plot(WMA_future_male, xlab="Years", main="WightedMovingAverage Model for Adult Male Mortality WORLD")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
+
+#Fit AUTOarima time series model to the data
+```{r}
+# I try to fit an AutoArima model
+ARIMA_fit_male <- auto.arima(stationary_mort_male.train, stationary = TRUE, seasonal = FALSE)
+ARIMA_future_male <- forecast(ARIMA_fit_male, h = 5)
+
+# These is the prediction of the last 5 years using AR
+plot(ARIMA_future_male, xlab="Years", main="AutoArima Model for Adult Male Mortality WORLD")
+lines(ts(stationary_mort_male), col="orange")
+
+#Calculate the MSE
+mse(as.numeric(stationary_mort_male.test), as.numeric(WMA_future_male$mean))
+```
